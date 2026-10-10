@@ -5,21 +5,30 @@ import { DocumentService } from '../../document.service';
 import { AnalyzedDocument, DOCUMENT_PROCESSOR, ProcessedDocument } from '../../document-processor';
 import { LanguageService } from '../../language.service';
 import { textRange } from '../../manual-selection';
+import { MANUAL_STORAGE_KEY } from '../../manual-storage';
 
 jasmine.DEFAULT_TIMEOUT_INTERVAL = 10000;
 
 describe('PDF selection', () => {
   let savedLanguage: string | null;
+  let savedMarks: string | null;
 
   beforeEach(() => {
     savedLanguage = localStorage.getItem('language');
+    savedMarks = localStorage.getItem(MANUAL_STORAGE_KEY);
     localStorage.removeItem('language');
+    localStorage.removeItem(MANUAL_STORAGE_KEY);
     TestBed.configureTestingModule({ imports: [Anonymize], providers: [provideRouter([])] });
   });
 
   afterEach(() => {
-    if (savedLanguage === null) localStorage.removeItem('language');
-    else localStorage.setItem('language', savedLanguage);
+    for (const [key, value] of [
+      ['language', savedLanguage],
+      [MANUAL_STORAGE_KEY, savedMarks],
+    ]) {
+      if (value === null) localStorage.removeItem(key!);
+      else localStorage.setItem(key!, value!);
+    }
     document.documentElement.lang = 'en';
   });
 

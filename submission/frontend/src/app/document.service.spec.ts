@@ -8,6 +8,20 @@ import {
 import { DocumentService } from './document.service';
 import { exampleDocumentProcessor } from './example-document';
 import { LanguageService } from './language.service';
+import { MANUAL_STORAGE_KEY } from './manual-storage';
+
+/** Every test starts without stored marks and leaves the browser storage as it found it. */
+function isolateStoredMarks(): void {
+  let saved: string | null;
+  beforeEach(() => {
+    saved = localStorage.getItem(MANUAL_STORAGE_KEY);
+    localStorage.removeItem(MANUAL_STORAGE_KEY);
+  });
+  afterEach(() => {
+    if (saved === null) localStorage.removeItem(MANUAL_STORAGE_KEY);
+    else localStorage.setItem(MANUAL_STORAGE_KEY, saved);
+  });
+}
 
 function deferred<T>() {
   let resolve!: (value: T) => void;
@@ -58,6 +72,8 @@ describe('Document selection workflow', () => {
   let processor: jasmine.SpyObj<DocumentProcessor>;
   let documents: DocumentService;
   let file: File;
+
+  isolateStoredMarks();
 
   beforeEach(() => {
     processor = jasmine.createSpyObj<DocumentProcessor>('processor', ['analyze', 'anonymize']);
@@ -429,24 +445,128 @@ describe('Document selection workflow', () => {
     expect(documents.analysis()!.entities.length).toBe(3);
   });
 
-  it('forgets manual occurrences with their analysis but keeps them when returning to review', async () => {
+  it('keeps manual occurrences when returning to review and brings them back for the same document', async () => {
     await analyzeSelected();
     expect(documents.addManualEntities([{ start: 11, end: 14 }], 'ID')).toEqual(['manual-1']);
     expect(await documents.anonymize()).toBeTrue();
     documents.returnToReview();
     expect(documents.analysis()!.entities.map((entity) => entity.id)).toContain('manual-1');
     expect(documents.isSelected('manual-1')).toBeTrue();
+    const manual = {
+      id: 'manual-1',
+      start: 11,
+      end: 14,
+      type: 'ID',
+      replacement: '*',
+      manual: true,
+    };
     expect(await documents.analyze()).toBeTrue();
-    expect(documents.analysis()!.entities.some((entity) => entity.manual)).toBeFalse();
-    expect(documents.addManualEntities([{ start: 11, end: 14 }], 'ID')).toEqual(['manual-1']);
+    expect(documents.analysis()!.entities.filter((entity) => entity.manual)).toEqual([manual]);
+    expect(documents.addManualEntities([{ start: 11, end: 14 }], 'ID')).toEqual([]);
     documents.returnToDocument();
     expect(documents.analysis()).toBeNull();
     expect(await documents.analyze()).toBeTrue();
-    expect(documents.analysis()!.entities.length).toBe(3);
-    documents.addManualEntities([{ start: 11, end: 14 }], 'ID');
+    expect(documents.analysis()!.entities.filter((entity) => entity.manual)).toEqual([manual]);
+    expect(documents.isSelected('manual-1')).toBeTrue();
     documents.clear();
     expect(documents.analysis()).toBeNull();
     expect(documents.selectedCount()).toBe(0);
+  });
+
+  it('stores where the marks are, never their text, and restores them after a reload', async () => {
+    await analyzeSelected();
+    documents.addManualEntities([{ start: 4, end: 5 }], documents.addCustomCategory('Sigla'));
+    documents.addManualEntities([{ start: 11, end: 14 }], 'ID');
+    documents.setEntities(['manual-1', 'name-2'], false);
+    const stored = localStorage.getItem(MANUAL_STORAGE_KEY)!;
+    expect(stored).not.toContain('NIF');
+    expect(stored).not.toContain('account');
+    expect(JSON.parse(stored)).toEqual({
+      document: jasmine.any(String),
+      entities: [
+        { start: 4, end: 5, type: 'custom:Sigla', selected: false },
+        { start: 11, end: 14, type: 'ID', selected: true },
+      ],
+    });
+    // A reload: nothing is left in memory, and the same file is chosen again.
+    TestBed.resetTestingModule();
+    TestBed.configureTestingModule({
+      providers: [{ provide: DOCUMENT_PROCESSOR, useValue: processor }],
+    });
+    documents = TestBed.inject(DocumentService);
+    file = new File(['%PDF-input'], 'account.pdf', { type: 'application/pdf' });
+    expect(documents.customCategories()).toEqual([]);
+    await analyzeSelected();
+    expect(documents.analysis()!.entities.map((entity) => entity.id)).toEqual([
+      'name-1',
+      'manual-1',
+      'name-2',
+      'manual-2',
+      'id-1',
+    ]);
+    // Detected occurrences start selected, as after any analysis.
+    expect(documents.selectedEntityIds()).toEqual(['name-1', 'name-2', 'manual-2', 'id-1']);
+    expect(documents.analysis()!.entities[1].type).toBe('custom:Sigla');
+    expect(documents.customCategories()).toEqual(['Sigla']);
+  });
+
+  it('replaces the stored marks only when another document is analysed', async () => {
+    await analyzeSelected();
+    documents.addManualEntities([{ start: 11, end: 14 }], 'ID');
+    const other = new File(['%PDF-other'], 'other.pdf', { type: 'application/pdf' });
+    // Choosing another file without analysing it leaves them stored.
+    documents.select(other);
+    await analyzeSelected();
+    expect(documents.analysis()!.entities.some((entity) => entity.manual)).toBeTrue();
+    // The processor gives the same text, but this is another file.
+    documents.select(other);
+    expect(await documents.analyze()).toBeTrue();
+    expect(documents.analysis()!.entities.some((entity) => entity.manual)).toBeFalse();
+    await analyzeSelected();
+    expect(documents.analysis()!.entities.some((entity) => entity.manual)).toBeFalse();
+  });
+
+  it('leaves out stored marks that no longer fit and ignores invalid storage', async () => {
+    await analyzeSelected();
+    documents.addManualEntities(
+      [
+        { start: 4, end: 5 },
+        { start: 11, end: 14 },
+      ],
+      'NAME',
+    );
+    // The new analysis detects "NIF": the mark over it is dropped, from storage too.
+    processor.analyze.and.resolveTo({
+      ...analysis(),
+      entities: [
+        ...analysis().entities,
+        { id: 'nif-1', start: 11, end: 14, type: 'ID', replacement: '*' },
+      ],
+    });
+    expect(await documents.analyze()).toBeTrue();
+    expect(documents.analysis()!.entities.filter((entity) => entity.manual).length).toBe(1);
+    const { document, entities } = JSON.parse(localStorage.getItem(MANUAL_STORAGE_KEY)!);
+    expect(entities).toEqual([{ start: 4, end: 5, type: 'NAME', selected: true }]);
+    const mark = { start: 4, end: 5, type: 'NAME', selected: true };
+    for (const invalid of [
+      [{ ...mark, start: 4.5 }],
+      [{ ...mark, end: 99 }],
+      [{ ...mark, start: 5, end: 4 }],
+      [{ ...mark, type: 'UNKNOWN' }],
+      [{ ...mark, type: 'custom:' }],
+      [{ ...mark, type: 'custom: Sigla' }],
+      [{ ...mark, type: `custom:${'x'.repeat(41)}` }],
+      [{ ...mark, selected: 'yes' }],
+      [null],
+      'invalid',
+    ]) {
+      localStorage.setItem(MANUAL_STORAGE_KEY, JSON.stringify({ document, entities: invalid }));
+      expect(await documents.analyze()).toBeTrue();
+      expect(documents.analysis()!.entities.some((entity) => entity.manual)).toBeFalse();
+    }
+    localStorage.setItem(MANUAL_STORAGE_KEY, '{');
+    expect(await documents.analyze()).toBeTrue();
+    expect(documents.analysis()!.entities.some((entity) => entity.manual)).toBeFalse();
   });
 
   it('reuses custom categories whatever their case and prefers built-in names in either language', () => {
@@ -497,6 +617,8 @@ describe('Document selection workflow', () => {
 });
 
 describe('Local selected anonymization', () => {
+  isolateStoredMarks();
+
   it('masks only selected occurrences and downloads that exact text', async () => {
     const signal = new AbortController().signal;
     const document = await exampleDocumentProcessor.analyze(

@@ -126,8 +126,10 @@ def reconstruct_pdf_with_report(
                 if line["dir"] != (1.0, 0.0)
             ]
 
+            # Same lines as extract_text(), which drops the trailing
+            # space PyMuPDF leaves on Word PDFs (#14).
             page_lines = [
-                line
+                line.rstrip()
                 for line in page.get_text(
                     "text", sort=False
                 ).split("\n")

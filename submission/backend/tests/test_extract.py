@@ -1,7 +1,30 @@
+from pathlib import Path
+
 import pymupdf
 import pytest
 
 from anonymizer.extract import extract_text, extract_text_from_bytes
+
+CHALLENGE_PDF = (
+    Path(__file__).resolve().parents[3]
+    / "raw_data" / "document_to_anonymize.pdf"
+)
+
+
+def test_challenge_document_matches_the_official_sample():
+    """#14: no trailing spaces, so the first lines equal the sample."""
+    lines = extract_text(CHALLENGE_PDF).split("\n")
+
+    assert lines[:4] == [
+        "Relatório de Admissão - Centro Médico Lisboa",
+        "Data: 15 de abril de 2025",
+        "Referência: ADM-2025-04-15-089",
+        "Informações do Paciente:",
+    ]
+    assert all(line == line.rstrip() for line in lines)
+    assert all(line.strip() for line in lines)
+    assert len(lines) == 60
+    assert sum(len(line.split()) for line in lines) == 355
 
 
 def test_extract_text_from_pdf(tmp_path):

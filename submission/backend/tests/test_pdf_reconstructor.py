@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import pymupdf
 import pytest
 
@@ -8,6 +10,11 @@ from anonymizer.pdf_reconstructor import (
     reconstruct_pdf_with_report,
 )
 from anonymizer.spans import Category, Span
+
+CHALLENGE_PDF = (
+    Path(__file__).resolve().parents[3]
+    / "raw_data" / "document_to_anonymize.pdf"
+)
 
 
 def test_reconstruct_pdf_removes_sensitive_text():
@@ -352,3 +359,24 @@ def test_hand_marked_range_is_redacted_only_where_it_is():
         page = document[0]
         assert page.get_textbox(first).strip() == "AA-12-BB"
         assert "AA-12-BB" not in page.get_textbox(second)
+
+
+def test_challenge_pdf_rebuilds_with_the_extracted_text():
+    """Word PDFs end every line with a space that extraction drops (#14):
+    the rebuild must still line up with the extracted text."""
+    pdf_data = CHALLENGE_PDF.read_bytes()
+    lines = extract_text_from_bytes(pdf_data).split("\n")
+    spans = [
+        Span(number, text, Category.NAME)
+        for text in ("Maria Conceição Oliveira Santos", "Carlos Mendes")
+        for number, line in enumerate(lines, 1) if text in line
+    ]
+
+    result, unmatched = reconstruct_pdf_with_report(pdf_data, spans)
+
+    assert unmatched == []
+    with pymupdf.open(stream=result, filetype="pdf") as document:
+        text = "".join(page.get_text() for page in document)
+    assert "Maria Conceição" not in text
+    assert "Carlos Mendes" not in text
+    assert "Relatório de Admissão - Centro Médico Lisboa" in text

@@ -80,15 +80,17 @@ docker run -p 10000:10000 --env-file submission/backend/.env dataveil
 ```
 
 On [Render](https://render.com): **New -> Web Service**, connect this fork,
-then:
+then (this is the live setup at https://dataveil.onrender.com):
 
 | Setting | Value |
 |---|---|
 | Branch | `team_HTTPERROR469` (every merge redeploys) |
 | Language | Docker |
-| Root directory | `submission` |
-| Dockerfile path | `./Dockerfile` (relative to the root directory) |
-| Docker build context directory | `.` (relative to the root directory) |
+| Region | Frankfurt (EU Central) |
+| Root directory | empty (repository root) |
+| Dockerfile path | `submission/Dockerfile` |
+| Docker build context directory | `submission` |
+| Docker command | empty (the Dockerfile's `CMD` runs `uvicorn`) |
 | Instance type | Free |
 | Health check path | `/api/health` |
 | Environment | `GEMINI_API_KEY` (a key made only for the demo), `GEMINI_MODEL` |

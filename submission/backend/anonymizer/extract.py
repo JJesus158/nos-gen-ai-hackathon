@@ -12,7 +12,9 @@ def _extract_document(document: pymupdf.Document) -> str:
 
         for line in page_text.split("\n"):
             if line.strip():
-                lines.append(line)
+                # PyMuPDF leaves a space before every line break in
+                # Word-generated PDFs; the official sample has none (#14).
+                lines.append(line.rstrip())
 
     if not lines:
         raise ValueError(

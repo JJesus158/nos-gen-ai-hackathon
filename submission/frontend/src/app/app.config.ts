@@ -8,7 +8,7 @@ export const appConfig: ApplicationConfig = {
   providers: [
     provideBrowserGlobalErrorListeners(),
     provideRouter(routes),
-    // Set to '/api/documents' when the backend is available.
-    { provide: DOCUMENT_API_URL, useValue: null },
+    // The FastAPI backend; ng serve forwards /api through proxy.conf.json.
+    { provide: DOCUMENT_API_URL, useValue: '/api/documents' },
   ],
 };

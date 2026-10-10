@@ -2,6 +2,9 @@
 node_modules/
 .angular/
 
+# Angular build copied next to the API (Docker does this)
+backend/static/
+
 # Local caches
 .cache/
 .pytest_cache/

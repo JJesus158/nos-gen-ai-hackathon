@@ -65,6 +65,43 @@ Analyses live in memory for one hour. Errors come back as `{"message": "..."}`
 with the contract's status codes (400, 404, 413, 415, 422, 500). CORS allows
 `http://localhost:4200`; with the Angular proxy no CORS is needed at all.
 
+## Deploy (Render)
+
+One Docker image serves both the API and the built Angular app, so the whole
+app lives on one URL and needs no CORS. `submission/Dockerfile` builds the
+frontend with Node, then runs `uvicorn` with the build in `backend/static`.
+`GET /api/health` is there for the platform's health check.
+
+```bash
+# Locally (from the repository root)
+docker build -t dataveil submission
+docker run -p 10000:10000 --env-file submission/backend/.env dataveil
+# -> http://localhost:10000
+```
+
+On [Render](https://render.com): **New -> Web Service**, connect this fork,
+then:
+
+| Setting | Value |
+|---|---|
+| Branch | `team_HTTPERROR469` (every merge redeploys) |
+| Language | Docker |
+| Root directory | `submission` |
+| Dockerfile path | `./Dockerfile` (relative to the root directory) |
+| Docker build context directory | `.` (relative to the root directory) |
+| Instance type | Free |
+| Health check path | `/api/health` |
+| Environment | `GEMINI_API_KEY` (a key made only for the demo), `GEMINI_MODEL` |
+
+- The key is set in Render's environment only; `.dockerignore` keeps `.env`
+  out of the image.
+- Keep one instance and one worker: analyses live in memory between
+  `/analyze` and `/anonymize`.
+- On the free plan the service sleeps after ~15 min idle and the first
+  request takes about a minute: open the link a few minutes before a demo.
+- Gemini's free tier may use what is sent to improve Google's products:
+  upload fictitious documents only (like the challenge's).
+
 ## Tests
 
 ```bash

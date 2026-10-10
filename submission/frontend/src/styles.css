@@ -73,6 +73,9 @@
   --bs-body-color: var(--ink);
   --bs-border-color: var(--line);
 }
+[data-bs-theme='dark'] .category-highlight.is-selected {
+  background: color-mix(in srgb, var(--category-color) 40%, transparent);
+}
 body {
   margin: 0;
   min-height: 100vh;
@@ -88,13 +91,10 @@ body::before {
   inset: -100px;
   z-index: -1;
   pointer-events: none;
-
   background:
     radial-gradient(ellipse at 5% 10%, rgba(124, 111, 220, 0.12), transparent 65%),
     radial-gradient(ellipse at 95% 30%, rgba(74, 144, 226, 0.1), transparent 70%),
     radial-gradient(ellipse at 25% 90%, rgba(94, 190, 170, 0.08), transparent 65%);
-
-  filter: blur(100px);
 }
 * {
   box-sizing: border-box;
@@ -275,11 +275,9 @@ input:focus-visible,
 }
 .category-highlight {
   background: transparent;
-  border-bottom: 1px dotted var(--category-color);
 }
 .category-highlight.is-selected {
-  background: color-mix(in srgb, var(--category-color) 18%, transparent);
-  border-bottom-style: solid;
+  background: color-mix(in srgb, var(--category-color) 28%, transparent);
 }
 .paper p:first-of-type {
   font-size: 0.76rem;
@@ -348,11 +346,9 @@ mark {
 @keyframes page-enter {
   from {
     opacity: 0;
-    transform: translateY(5px);
   }
   to {
     opacity: 1;
-    transform: translateY(0);
   }
 }
 .anonymization-modal-backdrop {

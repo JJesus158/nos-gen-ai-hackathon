@@ -67,6 +67,17 @@ def entities(text: str, spans: Sequence[Span]) -> List[Entity]:
     return result
 
 
+def selected_spans(found: Iterable[Entity],
+                   selected_ids: Iterable[str]) -> List[Span]:
+    """The spans behind the selected entities, each once, in order."""
+    wanted = set(selected_ids)
+    spans: List[Span] = []
+    for entity in found:
+        if entity.id in wanted and entity.span not in spans:
+            spans.append(entity.span)
+    return spans
+
+
 def mask_selected(text: str, found: Iterable[Entity],
                   selected_ids: Iterable[str],
                   manual: Sequence[ManualEntity] = ()) -> str:
@@ -76,12 +87,10 @@ def mask_selected(text: str, found: Iterable[Entity],
     masked together even if only one of them is selected. A manual
     occurrence is masked only where it is (see manual_ranges()).
     """
-    wanted = set(selected_ids)
-    spans = []
-    for entity in found:
-        if entity.id in wanted and entity.span not in spans:
-            spans.append(entity.span)
-    return masker.mask(text, spans, ranges=manual_ranges(text, manual))
+    return masker.mask(
+        text, selected_spans(found, selected_ids),
+        ranges=manual_ranges(text, manual),
+    )
 
 
 def manual_ranges(text: str,

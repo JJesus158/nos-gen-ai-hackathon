@@ -16,6 +16,7 @@ class Analysis:
     text: str
     entities: List[Entity]
     created_at: float
+    pdf: bytes = b""  # the uploaded file, to rebuild it masked
 
 
 class AnalysisStore:
@@ -28,10 +29,10 @@ class AnalysisStore:
         self._items: Dict[str, Analysis] = {}
         self._lock = threading.Lock()
 
-    def put(self, filename: str, text: str,
-            entities: List[Entity]) -> Analysis:
+    def put(self, filename: str, text: str, entities: List[Entity],
+            pdf: bytes = b"") -> Analysis:
         analysis = Analysis(
-            uuid.uuid4().hex, filename, text, entities, self._clock(),
+            uuid.uuid4().hex, filename, text, entities, self._clock(), pdf,
         )
         with self._lock:
             self._evict()

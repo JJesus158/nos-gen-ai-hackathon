@@ -4,7 +4,8 @@ import pymupdf
 import pytest
 from fastapi.testclient import TestClient
 
-from anonymizer import detector
+from anonymizer import detector, pdf_reconstructor
+from anonymizer.extract import extract_text_from_bytes
 from anonymizer.spans import Category, Span
 from api import main
 
@@ -69,10 +70,22 @@ def test_anonymize_masks_only_the_selection(client):
         "Nome: Ana Correia", "NIF: *", "Contacto: Ana Correia",
     ]
     download = body["download"]
-    assert download["name"] == "ficha-anonymized.txt"
-    assert download["mediaType"] == "text/plain;charset=utf-8"
-    decoded = base64.b64decode(download["contentBase64"]).decode("utf-8")
-    assert decoded == body["anonymizedText"]
+    assert download["name"] == "ficha-anonymized.pdf"
+    assert download["mediaType"] == "application/pdf"
+    assert pdf_words(download) == words(body["anonymizedText"])
+
+
+def words(text):
+    return sorted(text.split())
+
+
+def pdf_words(download):
+    """Words of the downloaded PDF. Order is not compared: the rebuilt
+    PDF draws the asterisks after the page text."""
+    data = base64.b64decode(download["contentBase64"])
+    with pymupdf.open(stream=data, filetype="pdf") as doc:
+        assert not doc.metadata.get("author")
+    return words(extract_text_from_bytes(data))
 
 
 def test_anonymize_with_everything_and_with_nothing(client):
@@ -86,7 +99,39 @@ def test_anonymize_with_everything_and_with_nothing(client):
     assert everything["anonymizedText"].split("\n") == [
         "Nome: * *", "NIF: *", "Contacto: * *",
     ]
+    assert pdf_words(everything["download"]) == words(
+        everything["anonymizedText"])
     assert nothing["anonymizedText"] == analysis["originalText"]
+    assert pdf_words(nothing["download"]) == words(
+        analysis["originalText"])
+
+
+def _needs_review(pdf, spans):
+    raise ValueError("manual review required")
+
+
+def _misses_spans(pdf, spans):
+    return pdf, list(spans)
+
+
+@pytest.mark.parametrize("rebuild", [_needs_review, _misses_spans])
+def test_unsafe_pdf_falls_back_to_masked_text(client, monkeypatch, rebuild):
+    """The file never protects less than the preview shows."""
+    monkeypatch.setattr(
+        pdf_reconstructor, "reconstruct_pdf_with_report", rebuild,
+    )
+    analysis = analyze(client).json()
+
+    body = client.post(
+        f"/api/documents/{analysis['id']}/anonymize",
+        json={"selectedEntityIds": ["entity-2"]},
+    ).json()
+
+    download = body["download"]
+    assert download["name"] == "ficha-anonymized.txt"
+    assert download["mediaType"] == "text/plain;charset=utf-8"
+    decoded = base64.b64decode(download["contentBase64"]).decode("utf-8")
+    assert decoded == body["anonymizedText"]
 
 
 def test_error_statuses_follow_the_contract(client):
@@ -143,8 +188,9 @@ def test_manual_entities_are_masked_where_they_are(client):
     assert body["anonymizedText"].split("\n") == [
         "Nome: Ana Correia", "NIF: *", "Contacto: Ana *",
     ]
-    decoded = base64.b64decode(body["download"]["contentBase64"])
-    assert decoded.decode("utf-8") == body["anonymizedText"]
+    # The PDF download hides the hand-marked word too, like the preview.
+    assert body["download"]["mediaType"] == "application/pdf"
+    assert pdf_words(body["download"]) == words(body["anonymizedText"])
 
 
 def test_manual_entities_without_selected_ids(client):
@@ -166,7 +212,12 @@ def test_absent_or_empty_manual_entities_change_nothing(client):
     empty = anonymize(client, analysis["id"], ["entity-1"], [])
 
     assert absent.status_code == empty.status_code == 200
-    assert absent.content == empty.content
+    # The rebuilt PDF bytes differ between saves; compare what they hold.
+    absent_body, empty_body = absent.json(), empty.json()
+    assert absent_body["anonymizedText"] == empty_body["anonymizedText"]
+    assert absent_body["download"]["name"] == empty_body["download"]["name"]
+    assert pdf_words(absent_body["download"]) == pdf_words(
+        empty_body["download"])
     assert absent.json()["anonymizedText"].split("\n") == [
         "Nome: * *", "NIF: 123456789", "Contacto: Ana Correia",
     ]

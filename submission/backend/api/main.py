@@ -1,7 +1,11 @@
 """The two endpoints of submission/frontend/API_CONTRACT.md.
 
 POST /api/documents/analyze            PDF -> text + detected occurrences
-POST /api/documents/{id}/anonymize     selected ids -> masked text + file
+POST /api/documents/{id}/anonymize     selected ids -> masked text + PDF
+
+The download is the uploaded PDF rebuilt with the selected words
+redacted. If that cannot be done safely, it falls back to the masked
+text as .txt, so the file never protects less than the preview shows.
 
 Routes are plain functions on purpose: FastAPI runs them in a thread
 pool, so the Gemini call never blocks the event loop.
@@ -17,8 +21,12 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, StrictInt, StringConstraints
 
-from anonymizer import detector, entities, extract
-from api.store import AnalysisStore
+from anonymizer import (
+    detector, entities, extract, masker, pdf_reconstructor,
+)
+from anonymizer.masker import LineRange
+from anonymizer.spans import Span
+from api.store import Analysis, AnalysisStore
 
 MAX_BYTES = 10 * 1024 * 1024
 FRONTEND_ORIGINS = ["http://localhost:4200", "http://127.0.0.1:4200"]
@@ -103,7 +111,7 @@ def analyze(file: UploadFile = File(...)) -> AnalysisOut:
         raise HTTPException(500, "Processing failed")
 
     found = entities.entities(text, spans)
-    analysis = store.put(file.filename or "document.pdf", text, found)
+    analysis = store.put(file.filename or "document.pdf", text, found, data)
     return AnalysisOut(
         id=analysis.id, originalText=text,
         entities=[
@@ -129,18 +137,49 @@ def anonymize(analysis_id: str, body: AnonymizeIn) -> AnonymizeOut:
     manual = [(m.start, m.end, m.type) for m in body.manualEntities]
 
     try:
-        masked = entities.mask_selected(
-            analysis.text, analysis.entities, ids, manual,
-        )
+        ranges = entities.manual_ranges(analysis.text, manual)
     except ValueError:
         raise HTTPException(400, "Invalid manual entity range")
-    name = Path(analysis.filename).stem or "document"
+
+    spans = entities.selected_spans(analysis.entities, ids)
+    masked = masker.mask(analysis.text, spans, ranges=ranges)
     return AnonymizeOut(
         anonymizedText=masked,
-        download=DownloadOut(
-            name=f"{name}-anonymized.txt",
-            mediaType="text/plain;charset=utf-8",
-            contentBase64=base64.b64encode(
-                masked.encode("utf-8")).decode("ascii"),
-        ),
+        download=_download(analysis, spans, ranges, masked),
     )
+
+
+def _download(analysis: Analysis, spans: List[Span],
+              ranges: List[LineRange], masked: str) -> DownloadOut:
+    """The rebuilt PDF, or the masked text when the PDF is not safe."""
+    name = Path(analysis.filename).stem or "document"
+    pdf = _rebuild_pdf(analysis, spans, ranges)
+    if pdf is not None:
+        return DownloadOut(
+            name=f"{name}-anonymized.pdf", mediaType="application/pdf",
+            contentBase64=base64.b64encode(pdf).decode("ascii"),
+        )
+    return DownloadOut(
+        name=f"{name}-anonymized.txt", mediaType="text/plain;charset=utf-8",
+        contentBase64=base64.b64encode(masked.encode("utf-8")).decode("ascii"),
+    )
+
+
+def _rebuild_pdf(analysis: Analysis, spans: List[Span],
+                 ranges: List[LineRange]) -> Optional[bytes]:
+    if not analysis.pdf:
+        return None
+    try:
+        pdf, unmatched = pdf_reconstructor.reconstruct_pdf_with_report(
+            analysis.pdf, spans, ranges=ranges,
+        )
+    except Exception:
+        # e.g. "manual review required": redacting would touch public text
+        log.warning("PDF rebuild failed, sending .txt", exc_info=True)
+        return None
+    if unmatched:
+        # The PDF would protect less than the preview: never send that.
+        log.warning("%d selected spans not in the PDF, sending .txt",
+                    len(unmatched))
+        return None
+    return pdf

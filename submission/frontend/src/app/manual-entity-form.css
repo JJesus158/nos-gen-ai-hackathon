@@ -3,6 +3,14 @@
   z-index: 5;
   width: min(300px, calc(100% - 16px));
 }
+/* Dismissed by a press or focus elsewhere: hidden but kept, so the layout does not move. */
+:host(.is-hidden) {
+  visibility: hidden;
+  pointer-events: none;
+}
+.manual-entity-form:focus {
+  outline: none;
+}
 /* The paper stays white in both themes, so the form on it is light too (data-bs-theme). */
 .manual-entity-form {
   color-scheme: light;

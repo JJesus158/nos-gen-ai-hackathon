@@ -44,10 +44,13 @@ export class ManualEntityForm {
   readonly text = input.required<string>();
   /** The selection overlaps identified data: only an explanation is shown. */
   readonly overlap = input(false);
+  /** The overlapped data is listed but not selected: offer to select it instead. */
+  readonly deselected = input(false);
   /** Number of other whole-word occurrences that can be marked at the same time. */
   readonly occurrences = input(0);
   readonly defaultCategory = input('NAME');
   readonly added = output<ManualEntityChoice>();
+  readonly selectExisting = output<void>();
   readonly closed = output<void>();
 
   protected readonly language = inject(LanguageService);
@@ -71,6 +74,9 @@ export class ManualEntityForm {
   protected readonly valid = computed(
     () => this.category() !== NEW_CATEGORY || !!normalizeCategoryLabel(this.name()),
   );
+  protected readonly overlapMessage = computed(() =>
+    this.deselected() ? this.language.text().manualDeselected : this.language.text().manualOverlap,
+  );
   protected readonly othersLabel = computed(() => {
     const text = this.language.text();
     const count = this.occurrences();
@@ -83,19 +89,35 @@ export class ManualEntityForm {
   private readonly select = viewChild<ElementRef<HTMLSelectElement>>('categorySelect');
   private readonly nameInput = viewChild<ElementRef<HTMLInputElement>>('nameInput');
   private readonly closeButton = viewChild<ElementRef<HTMLButtonElement>>('closeButton');
+  private readonly actionButton = viewChild<ElementRef<HTMLButtonElement>>('actionButton');
+  /** The last choice in the select came from the pointer, not from arrow keys or End. */
+  private pointerChoice = false;
 
   constructor() {
     afterNextRender(() => {
       this.host.nativeElement.scrollIntoView({ block: 'nearest' });
-      (this.select() ?? this.closeButton())?.nativeElement.focus({ preventScroll: true });
+      (this.select() ?? this.actionButton() ?? this.closeButton())?.nativeElement.focus({
+        preventScroll: true,
+      });
     });
+  }
+
+  /** A method, not an assignment: a handler that evaluates to false would cancel the key. */
+  protected choosingWith(input: 'pointer' | 'keyboard'): void {
+    this.pointerChoice = input === 'pointer';
   }
 
   protected choose(value: string): void {
     this.category.set(value);
-    if (value === NEW_CATEGORY) {
-      afterNextRender(() => this.nameInput()?.nativeElement.focus(), { injector: this.injector });
-    }
+    afterNextRender(
+      () => {
+        // The form grew: keep its buttons in view, on phones too.
+        this.host.nativeElement.scrollIntoView({ block: 'nearest' });
+        // Arrow keys and End also pass through "New category…": only a pointer choice moves on.
+        if (value === NEW_CATEGORY && this.pointerChoice) this.nameInput()?.nativeElement.focus();
+      },
+      { injector: this.injector },
+    );
   }
 
   protected submit(event: Event): void {

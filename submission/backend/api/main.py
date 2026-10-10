@@ -19,7 +19,7 @@ from typing import Annotated, List, Optional
 from fastapi import FastAPI, File, HTTPException, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel, StrictInt, StringConstraints
+from pydantic import BaseModel, Field, StrictInt, StringConstraints
 
 from anonymizer import (
     detector, entities, extract, masker, pdf_reconstructor,
@@ -29,6 +29,7 @@ from anonymizer.spans import Span
 from api.store import Analysis, AnalysisStore
 
 MAX_BYTES = 10 * 1024 * 1024
+MAX_MANUAL_ENTITIES = 5000
 FRONTEND_ORIGINS = ["http://localhost:4200", "http://127.0.0.1:4200"]
 
 log = logging.getLogger("api")
@@ -67,7 +68,9 @@ class ManualEntityIn(BaseModel):
 
 class AnonymizeIn(BaseModel):
     selectedEntityIds: List[str]
-    manualEntities: List[ManualEntityIn] = []
+    manualEntities: Annotated[
+        List[ManualEntityIn], Field(max_length=MAX_MANUAL_ENTITIES),
+    ] = []
 
 
 class DownloadOut(BaseModel):

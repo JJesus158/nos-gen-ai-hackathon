@@ -95,6 +95,8 @@ const en = {
   close: 'Close',
   manualOverlap:
     'This text overlaps data that is already identified. Select only the missing part.',
+  manualDeselected: 'This text is already in the list, but it is not selected for anonymization.',
+  selectExisting: 'Select it',
   manualBadge: 'Added by you',
   removeManual: 'Remove',
   manualAdded: 'Added to {category}',
@@ -180,7 +182,7 @@ const pt: typeof en = {
   download: 'Descarregar documento',
   processAnother: 'Selecionar outro documento',
   bytes: 'bytes',
-  manualHint: 'Selecione texto no documento para marcar dados que não foram identificados.',
+  manualHint: 'Selecione texto para marcar dados não identificados.',
   markAsPersonalData: 'Marcar como dado pessoal',
   category: 'Categoria',
   newCategory: 'Nova categoria…',
@@ -192,10 +194,15 @@ const pt: typeof en = {
   close: 'Fechar',
   manualOverlap:
     'Este texto sobrepõe-se a dados já identificados. Selecione apenas a parte em falta.',
+  manualDeselected: 'Este texto já está na lista, mas não está selecionado para anonimizar.',
+  selectExisting: 'Selecionar',
   manualBadge: 'Adicionado por si',
   removeManual: 'Remover',
   manualAdded: 'Adicionado a {category}',
 };
+
+/** Every translation, e.g. to recognise a built-in category label typed in either language. */
+export const TRANSLATIONS: readonly (typeof en)[] = [en, pt];
 
 @Injectable({ providedIn: 'root' })
 export class LanguageService {

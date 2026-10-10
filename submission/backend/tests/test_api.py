@@ -271,3 +271,8 @@ def test_malformed_manual_entities_are_schema_errors(client):
 
     longest = manual(0, 4, "custom:" + "x" * 93)
     assert anonymize(client, analysis["id"], [], [longest]).status_code == 200
+
+    too_many = [manual(0, 4)] * (main.MAX_MANUAL_ENTITIES + 1)
+    assert anonymize(client, analysis["id"], [], too_many).status_code == 422
+    most = [manual(0, 4)] * main.MAX_MANUAL_ENTITIES
+    assert anonymize(client, analysis["id"], [], most).status_code == 200

@@ -449,7 +449,7 @@ describe('Document selection workflow', () => {
     expect(documents.selectedCount()).toBe(0);
   });
 
-  it('reuses custom categories whatever their case and prefers built-in names', () => {
+  it('reuses custom categories whatever their case and prefers built-in names in either language', () => {
     const saved = localStorage.getItem('language');
     const language = TestBed.inject(LanguageService);
     try {
@@ -459,15 +459,17 @@ describe('Document selection workflow', () => {
       );
       expect(documents.addCustomCategory('MATRÍCULA ESCOLAR')).toBe('custom:Matrícula escolar');
       expect(documents.addCustomCategory('names')).toBe('NAME');
-      expect(documents.addCustomCategory('Saúde')).toBe('custom:Saúde');
+      // The label of a built-in category in the other language is that category too.
+      expect(documents.addCustomCategory('Saúde')).toBe('HEALTH');
       language.setPreference('pt-PT');
       expect(documents.addCustomCategory('saúde')).toBe('HEALTH');
+      expect(documents.addCustomCategory('Names')).toBe('NAME');
       expect(documents.addCustomCategory('   ')).toBe('');
       expect(documents.addCustomCategory('x'.repeat(41))).toBe('');
       expect(documents.addCustomCategory('x'.repeat(40))).toBe(`custom:${'x'.repeat(40)}`);
-      expect(documents.customCategories()).toEqual(['Matrícula escolar', 'Saúde', 'x'.repeat(40)]);
+      expect(documents.customCategories()).toEqual(['Matrícula escolar', 'x'.repeat(40)]);
       documents.clear();
-      expect(documents.customCategories().length).toBe(3);
+      expect(documents.customCategories().length).toBe(2);
     } finally {
       if (saved === null) localStorage.removeItem('language');
       else localStorage.setItem('language', saved);

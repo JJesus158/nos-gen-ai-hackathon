@@ -84,6 +84,18 @@ describe('Manual selection helpers', () => {
     ]);
   });
 
+  it('splits words on the backend whitespace (Python), not on JavaScript whitespace', () => {
+    // U+FEFF is not whitespace for Python: the backend masks "Ana\uFEFFSilva" as one word.
+    const glued = 'Nome: Ana\uFEFFSilva fim';
+    const start = glued.indexOf('Ana');
+    expect(snapToWords(glued, start, start + 3)).toEqual({ start, end: glued.indexOf(' fim') });
+    expect(maskReplacement('Ana\uFEFFSilva')).toBe('*');
+    // U+0085 and U+001C-U+001F are whitespace for Python, so they separate words.
+    expect(maskReplacement('Ana\u0085Silva\u001fRui')).toBe('*\u0085*\u001f*');
+    expect(snapToWords('Ana\u0085Silva', 0, 2)).toEqual({ start: 0, end: 3 });
+    expect(findOtherOccurrences('Ana\u0085Silva Ana', 0, 3, [])).toEqual([{ start: 10, end: 13 }]);
+  });
+
   it('masks every word like the backend, keeping whitespace and edge punctuation', () => {
     expect(EDGE_PUNCTUATION).toBe(',.;:!?()[]{}"\'«»“”‘’');
     expect(maskReplacement('Rua da Liberdade, 12')).toBe('* * *, *');

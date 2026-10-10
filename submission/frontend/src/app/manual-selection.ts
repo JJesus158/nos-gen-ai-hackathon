@@ -10,6 +10,16 @@ export const EDGE_PUNCTUATION = ',.;:!?()[]{}"\'«»“”‘’';
 const MASK = '*';
 
 /**
+ * Whitespace as the backend sees it: Python's str.isspace(), which its \s and str.split() use.
+ * JavaScript's \s differs (it includes U+FEFF and leaves out U+0085 and U+001C-U+001F), and any
+ * difference would make the highlighted words differ from the masked ones.
+ */
+const SPACE =
+  '\\t\\n\\v\\f\\r\\x1c-\\x20\\x85\\xa0\\u1680\\u2000-\\u200a\\u2028\\u2029\\u202f\\u205f\\u3000';
+const SPACE_CHARACTER = new RegExp(`[${SPACE}]`);
+const WORDS = new RegExp(`[^${SPACE}]+`, 'g');
+
+/**
  * Offsets of the part of `range` that lies inside `container`, in the text of the container.
  * Range.toString() only counts Text nodes, so elements and comments at any depth do not matter.
  * Null when the range does not intersect the container or the intersection has no text.
@@ -135,7 +145,7 @@ export function splitsSurrogatePair(text: string, offset: number): boolean {
  * punctuation stays as it is. "Rua da Liberdade, 12" becomes "* * *, *".
  */
 export function maskReplacement(value: string): string {
-  return value.replace(/\S+/g, (word) => {
+  return value.replace(WORDS, (word) => {
     let start = 0;
     let end = word.length;
     while (start < end && EDGE_PUNCTUATION.includes(word[start])) start++;
@@ -145,7 +155,7 @@ export function maskReplacement(value: string): string {
 }
 
 function isSpace(character: string): boolean {
-  return /\s/.test(character);
+  return SPACE_CHARACTER.test(character);
 }
 
 function isEdge(character: string): boolean {

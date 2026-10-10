@@ -99,16 +99,27 @@ def manual_ranges(text: str,
 
     Every word such a range touches is masked, at that position only, so
     the same value elsewhere stays visible. A taxonomy code keeps its
-    Category; a category the user made up has none. ValueError if a
-    range is not valid (see code_points()).
+    Category; a category the user made up has none. Overlapping ranges
+    are merged first, since masking is their union, so repeating a range
+    costs nothing more. ValueError if a range is not valid (see
+    code_points()).
     """
     if not manual:
         return []
     utf16 = _utf16_offsets(text)
-    return line_ranges(text, [
-        _code_points(utf16, start, end) + (_category(kind),)
-        for start, end, kind in manual
-    ])
+    ranges = sorted(
+        (_code_points(utf16, start, end) + (_category(kind),)
+         for start, end, kind in manual),
+        key=lambda found: found[:2],
+    )
+    merged: List[Tuple[int, int, Optional[Category]]] = []
+    for start, end, category in ranges:
+        if merged and start < merged[-1][1]:
+            first, last, kept = merged[-1]
+            merged[-1] = (first, max(last, end), kept)
+        else:
+            merged.append((start, end, category))
+    return line_ranges(text, merged)
 
 
 def code_points(text: str, start: int, end: int) -> Tuple[int, int]:

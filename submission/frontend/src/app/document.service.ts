@@ -11,7 +11,7 @@ import {
   customCategoryCode,
   normalizeCategoryLabel,
 } from './document-categories';
-import { LanguageService } from './language.service';
+import { TRANSLATIONS } from './language.service';
 import { TextRange, maskReplacement, overlaps, splitsSurrogatePair } from './manual-selection';
 
 export type DocumentStage = 'document' | 'analysis' | 'anonymization' | 'results';
@@ -22,7 +22,6 @@ export const MIN_ANONYMIZATION_DURATION = 5000;
 @Injectable({ providedIn: 'root' })
 export class DocumentService {
   private readonly processor = inject(DOCUMENT_PROCESSOR);
-  private readonly language = inject(LanguageService);
   private readonly selected = signal<File | null>(null);
   private readonly analyzed = signal<AnalyzedDocument | null>(null);
   private readonly processed = signal<ProcessedDocument | null>(null);
@@ -194,16 +193,15 @@ export class DocumentService {
 
   /**
    * Code of a category named by the user, for this session only. A name already created is reused
-   * whatever its case, and the label of a built-in category in the current language gives that
-   * category instead. Returns '' for a blank or too long name.
+   * whatever its case, and the label of a built-in category in either language gives that category
+   * instead. Returns '' for a blank or too long name.
    */
   addCustomCategory(label: string): string {
     const name = normalizeCategoryLabel(label);
     if (!name || name.length > MAX_CATEGORY_LABEL_LENGTH) return '';
     const key = name.toLowerCase();
-    const text = this.language.text();
-    const builtIn = Object.entries(CATEGORY_DETAILS).find(
-      ([, details]) => text[details.labelKey].toLowerCase() === key,
+    const builtIn = Object.entries(CATEGORY_DETAILS).find(([, details]) =>
+      TRANSLATIONS.some((text) => text[details.labelKey].toLowerCase() === key),
     );
     if (builtIn) return builtIn[0];
     const existing = this.categories().find((category) => category.toLowerCase() === key);

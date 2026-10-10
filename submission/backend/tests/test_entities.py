@@ -98,6 +98,31 @@ def test_a_range_over_a_line_break_gives_one_range_per_line():
         entities.line_ranges(text, [(0, len(text) + 1, None)])
 
 
+def test_a_range_at_the_start_of_the_text():
+    assert entities.line_ranges("Ana\nBeto", [(0, 3, None)]) == [
+        (0, 0, 3, None),
+    ]
+    masked = entities.mask_selected("Ana Rua\nBeto", [], [], [(0, 3, "NAME")])
+    assert masked == "* Rua\nBeto"
+
+
+def test_overlapping_manual_ranges_are_merged():
+    text = "Nome: Ana Correia\nFim"
+    name = text.index("Ana")
+    repeated = [(name, name + 11, "NAME")] * 1000
+    overlapping = [(name, name + 3, "NAME"), (name + 2, name + 11, "custom:X")]
+
+    assert entities.manual_ranges(text, repeated) == [
+        (0, 6, 17, Category.NAME),
+    ]
+    assert entities.manual_ranges(text, overlapping) == [
+        (0, 6, 17, Category.NAME),
+    ]
+    assert entities.mask_selected(text, [], [], overlapping) == (
+        "Nome: * *\nFim"
+    )
+
+
 def test_manual_ranges_keep_taxonomy_categories_only():
     text = "Nome: Ana\nMatrícula: AB-12"
     manual = [(6, 9, "NAME"), (21, 26, "custom:Matrícula")]

@@ -120,6 +120,12 @@ legend {
   color: var(--ink);
   background: var(--accent-soft);
 }
+/* Bootstrap's .btn:focus-visible removes the outline and has no shadow colour for a bare .btn. */
+.remove-manual:focus-visible {
+  outline: 2px solid var(--accent-text);
+  outline-offset: 1px;
+  color: var(--ink);
+}
 .empty-entities {
   margin: 0;
 }

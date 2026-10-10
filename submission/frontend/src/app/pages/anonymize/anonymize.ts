@@ -47,6 +47,8 @@ interface PendingSelection extends TextRange {
   readonly text: string;
   /** Overlaps identified data: the form only explains why it cannot be marked. */
   readonly overlap: boolean;
+  /** IDs of the identified occurrences it overlaps. */
+  readonly overlapped: readonly string[];
   /** Other whole-word occurrences that can be marked at the same time. */
   readonly occurrences: readonly TextRange[];
 }
@@ -82,7 +84,11 @@ export class Anonymize {
   protected readonly dragging = signal(false);
   protected readonly error = signal<'fileError' | 'emptyPdf' | null>(null);
   protected readonly pending = signal<PendingSelection | null>(null);
-  /** False from a press in the text until its release: the highlight stays, the form goes. */
+  /**
+   * False once a press or focus goes elsewhere. The form and the highlight are then hidden, not
+   * removed: removing the form could shrink the scrolled preview and move the text under the
+   * pointer in the middle of a double-click or drag. A new selection replaces them.
+   */
   protected readonly formOpen = signal(false);
   protected readonly formPosition = signal({ top: 0, left: 0 });
   protected readonly lastCategory = signal('NAME');
@@ -94,10 +100,10 @@ export class Anonymize {
       ? pending
       : null;
   });
-  /** At most one form, tracked by the selection key. */
+  /** At most one form, tracked by the selection key, hidden while formOpen() is false. */
   protected readonly forms = computed(() => {
     const selection = this.selection();
-    return selection && this.formOpen() ? [selection] : [];
+    return selection ? [selection] : [];
   });
   /** Review segments: the plain segment holding the pending selection is split to highlight it. */
   protected readonly segments = computed<readonly Segment[]>(() => {
@@ -113,6 +119,7 @@ export class Anonymize {
   private readonly documentText = viewChild<ElementRef<HTMLElement>>('documentText');
   private readonly form = viewChild(ManualEntityForm, { read: ElementRef });
   private pointerHeld = false;
+  private pressOutsideForm = false;
   private touch = false;
   private touchTimer?: ReturnType<typeof setTimeout>;
   private selections = 0;
@@ -185,15 +192,49 @@ export class Anonymize {
    */
   protected pointerUp(event: PointerEvent): void {
     this.pointerHeld = false;
-    if (event.pointerType === 'touch') this.scheduleTouchSelection();
-    else this.captureSelection();
+    if (event.pointerType === 'touch') {
+      // A tap outside the form dismisses it, unless it selected text (read after the delay).
+      if (this.pressOutsideForm) this.formOpen.set(false);
+      this.scheduleTouchSelection();
+    } else {
+      this.captureSelection();
+    }
+    this.pressOutsideForm = false;
   }
 
-  /** Keyboard selections (caret browsing) are complete once Shift is released. */
+  /**
+   * Keyboard selections (caret browsing) are complete once Shift is released. Shortcuts such as
+   * Ctrl+A or Ctrl+C are not selections to mark.
+   */
   protected keyUp(event: KeyboardEvent): void {
     const target = event.target instanceof Node ? event.target : null;
-    if (event.shiftKey || (target && this.form()?.nativeElement.contains(target))) return;
+    if (
+      event.shiftKey ||
+      event.ctrlKey ||
+      event.metaKey ||
+      event.altKey ||
+      ['Control', 'Meta', 'Alt'].includes(event.key) ||
+      (target && this.form()?.nativeElement.contains(target))
+    )
+      return;
     this.captureSelection();
+  }
+
+  /** Focus leaving the form for something other than the preview hides it, as a press would. */
+  protected formFocusOut(event: FocusEvent): void {
+    const next = event.relatedTarget instanceof Node ? event.relatedTarget : null;
+    const form = this.form()?.nativeElement;
+    if (!next || !form || form.contains(next) || next === this.previewRegion()?.nativeElement)
+      return;
+    this.formOpen.set(false);
+  }
+
+  /** The selection overlaps occurrences that are listed but not selected: select them instead. */
+  protected selectExisting(): void {
+    const selection = this.selection();
+    if (!selection) return;
+    this.documents.setEntities(selection.overlapped, true);
+    this.closeForm(true);
   }
 
   protected addManual(choice: ManualEntityChoice): void {
@@ -203,7 +244,9 @@ export class Anonymize {
     if (!this.documents.addManualEntities(ranges, choice.type).length) return;
     this.lastCategory.set(choice.type);
     const text = this.language.text();
-    this.announcement.set(text.manualAdded.replace('{category}', categoryLabel(choice.type, text)));
+    const label = categoryLabel(choice.type, text);
+    // A replacer function, so that "$&" or "$$" in a category name stay as typed.
+    this.announcement.set(text.manualAdded.replace('{category}', () => label));
     this.closeForm(true);
   }
 
@@ -217,14 +260,18 @@ export class Anonymize {
     this.pointerHeld = true;
     this.touch = event.pointerType === 'touch';
     const target = event.target instanceof Node ? event.target : null;
-    if (!this.formOpen() || (target && this.form()?.nativeElement.contains(target))) return;
-    // A new selection may start here: changing the text nodes now would move its anchor.
-    if (target && this.documentText()?.nativeElement.contains(target)) this.formOpen.set(false);
-    else this.closeForm(false);
+    this.pressOutsideForm =
+      this.formOpen() && !(target && this.form()?.nativeElement.contains(target));
+    // Mouse and pen: hide the form at once, without removing it, so that nothing moves under the
+    // pointer while a new selection may start. Touch waits for the release, since the press may
+    // turn into a scroll.
+    if (this.pressOutsideForm && !this.touch) this.formOpen.set(false);
   }
 
+  /** The press became a scroll (touch) or the browser took it over: the form stays as it was. */
   private pointerCancel(): void {
     this.pointerHeld = false;
+    this.pressOutsideForm = false;
     this.scheduleTouchSelection();
   }
 
@@ -248,12 +295,12 @@ export class Anonymize {
       analysis && offsets && !this.documents.processing()
         ? snapToWords(analysis.originalText, offsets.start, offsets.end)
         : null;
-    if (!analysis || !range) {
-      // A press in the text that selected nothing closes what it left open.
-      if (this.pending() && !this.formOpen()) this.closeForm(false);
-      return;
-    }
-    const overlap = overlaps(range, analysis.entities);
+    // Nothing selected: a form hidden by the press stays hidden until another selection.
+    if (!analysis || !range) return;
+    const overlapped = analysis.entities
+      .filter((entity) => overlaps(entity, [range]))
+      .map((entity) => entity.id);
+    const overlap = overlapped.length > 0;
     const { start, end } = range;
     selected?.removeAllRanges();
     this.announcement.set('');
@@ -264,6 +311,7 @@ export class Anonymize {
       end,
       text: analysis.originalText.slice(start, end),
       overlap,
+      overlapped,
       occurrences: overlap
         ? []
         : findOtherOccurrences(analysis.originalText, start, end, analysis.entities),

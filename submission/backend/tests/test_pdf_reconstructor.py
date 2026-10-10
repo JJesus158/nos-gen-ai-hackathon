@@ -344,3 +344,11 @@ def test_hand_marked_range_is_redacted_only_where_it_is():
     assert unmatched == []
     words = sorted(extract_text_from_bytes(result_pdf).split())
     assert words == sorted("Nome: Ana Correia Matricula: AA-12-BB e *".split())
+
+    # By position: the first plate is still there, the second is gone.
+    with pymupdf.open(stream=original_pdf, filetype="pdf") as document:
+        first, second = document[0].search_for("AA-12-BB")
+    with pymupdf.open(stream=result_pdf, filetype="pdf") as document:
+        page = document[0]
+        assert page.get_textbox(first).strip() == "AA-12-BB"
+        assert "AA-12-BB" not in page.get_textbox(second)

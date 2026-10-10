@@ -337,6 +337,9 @@ describe('PDF selection', () => {
     const dialog = (root: HTMLElement) =>
       root.querySelector<HTMLElement>('app-manual-entity-form [role="dialog"]');
     const preview = (root: HTMLElement) => root.querySelector('.preview-panel .paper-scroll');
+    /** A dismissed form stays in the layout, hidden, until a new selection replaces it. */
+    const hidden = (root: HTMLElement) =>
+      root.querySelector('app-manual-entity-form')?.classList.contains('is-hidden') ?? null;
 
     afterEach(() => document.getSelection()?.removeAllRanges());
 
@@ -425,6 +428,8 @@ describe('PDF selection', () => {
       let form = dialog(root)!;
       expect(form.querySelector('q')!.textContent).toBe('Medicação');
       const category = form.querySelector('select')!;
+      // Chosen with the mouse: focus moves on to the name.
+      category.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
       category.value = 'new';
       category.dispatchEvent(new Event('change'));
       await fixture.whenStable();
@@ -491,7 +496,7 @@ describe('PDF selection', () => {
       TestBed.inject(LanguageService).setPreference('pt-PT');
       await fixture.whenStable();
       expect(root.querySelector('#manual-hint')!.textContent).toBe(
-        'Selecione texto no documento para marcar dados que não foram identificados.',
+        'Selecione texto para marcar dados não identificados.',
       );
       await selectText(fixture, ' de ');
       let form = dialog(root)!;
@@ -551,27 +556,54 @@ describe('PDF selection', () => {
       expect(document.activeElement).toBe(form.querySelector('select'));
     });
 
-    it('closes on a press elsewhere or when processing starts, and waits for touch selections', async () => {
+    it('hides the form on a press elsewhere without moving the layout, until a new selection', async () => {
       const { fixture, documents, root } = await review();
       await selectText(fixture, 'Medicação');
+      const form = root.querySelector('app-manual-entity-form');
       root
         .querySelector('.entity-scroll')!
         .dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
       await fixture.whenStable();
-      expect(dialog(root)).toBeNull();
-      expect(root.querySelector('.pending-highlight')).toBeNull();
+      expect(hidden(root)).toBeTrue();
+      expect(root.querySelector('app-manual-entity-form')).toBe(form);
+      expect(root.querySelector('.pending-highlight:not(.is-open)')).not.toBeNull();
+      // A release that selected nothing, such as the first click of a double-click, keeps it.
+      document.dispatchEvent(new PointerEvent('pointerup', { bubbles: true }));
+      await fixture.whenStable();
+      expect(root.querySelector('app-manual-entity-form')).toBe(form);
+      expect(hidden(root)).toBeTrue();
 
-      // A press in the text removes the form but leaves the text nodes alone until the release.
-      await selectText(fixture, 'Medicação');
+      // The next selection replaces it with a new, visible form.
+      await selectText(fixture, 'Diagnóstico');
+      expect(root.querySelector('app-manual-entity-form')).not.toBe(form);
+      expect(hidden(root)).toBeFalse();
+      expect(dialog(root)!.querySelector('q')!.textContent).toBe('Diagnóstico');
+
+      // A press in the text hides it too and leaves the text nodes alone.
       const container = root.querySelector<HTMLElement>('.document-text')!;
       container.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
       await fixture.whenStable();
-      expect(dialog(root)).toBeNull();
-      expect(root.querySelector('.pending-highlight:not(.is-open)')).not.toBeNull();
-      container.dispatchEvent(new PointerEvent('pointerup', { bubbles: true }));
-      await fixture.whenStable();
-      expect(root.querySelector('.pending-highlight')).toBeNull();
+      expect(hidden(root)).toBeTrue();
+      expect(root.querySelector('.document-text')!.textContent).toBe(
+        documents.analysis()!.originalText,
+      );
 
+      // The interface keeps processing visible for a while, so it is rendered at least once.
+      const request = documents.anonymize(100);
+      await fixture.whenStable();
+      expect(documents.processing()).toBeTrue();
+      expect(dialog(root)).toBeNull();
+      expect(await request).toBeTrue();
+      documents.returnToReview();
+      await fixture.whenStable();
+      expect(root.querySelector('.analysis-grid')).not.toBeNull();
+      expect(dialog(root)).toBeNull();
+      expect(root.querySelector('.pending-highlight')).toBeNull();
+    });
+
+    it('waits for touch selections, keeps the form during a scroll and hides it on a tap', async () => {
+      const { fixture, root } = await review();
+      const container = root.querySelector<HTMLElement>('.document-text')!;
       container.dispatchEvent(
         new PointerEvent('pointerdown', { bubbles: true, pointerType: 'touch' }),
       );
@@ -585,17 +617,122 @@ describe('PDF selection', () => {
       await fixture.whenStable();
       expect(dialog(root)!.querySelector('q')!.textContent).toBe('Diagnóstico');
 
-      // The interface keeps processing visible for a while, so it is rendered at least once.
-      const request = documents.anonymize(100);
+      // A swipe outside the form becomes a scroll: the browser cancels the pointer.
+      const list = root.querySelector<HTMLElement>('.entity-scroll')!;
+      list.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, pointerType: 'touch' }));
+      list.dispatchEvent(
+        new PointerEvent('pointercancel', { bubbles: true, pointerType: 'touch' }),
+      );
+      await new Promise((resolve) => setTimeout(resolve, 700));
       await fixture.whenStable();
-      expect(documents.processing()).toBeTrue();
-      expect(dialog(root)).toBeNull();
-      expect(await request).toBeTrue();
-      documents.returnToReview();
+      expect(hidden(root)).toBeFalse();
+
+      // A tap outside the form dismisses it.
+      list.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, pointerType: 'touch' }));
+      list.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, pointerType: 'touch' }));
       await fixture.whenStable();
-      expect(root.querySelector('.analysis-grid')).not.toBeNull();
+      expect(hidden(root)).toBeTrue();
+    });
+
+    it('closes with Escape after a click on its text, and hides when focus leaves it', async () => {
+      const { fixture, root } = await review();
+      await selectText(fixture, 'Medicação');
+      let form = dialog(root)!;
+      // A click on the title focuses the dialog itself, where Escape is handled.
+      expect(form.getAttribute('tabindex')).toBe('-1');
+      form.focus();
+      form.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+      await fixture.whenStable();
       expect(dialog(root)).toBeNull();
-      expect(root.querySelector('.pending-highlight')).toBeNull();
+      expect(document.activeElement).toBe(preview(root));
+
+      await selectText(fixture, 'Medicação');
+      form = dialog(root)!;
+      const category = form.querySelector('select')!;
+      // Shift+Tab back to the preview keeps it; Tab on to the list hides it.
+      category.dispatchEvent(
+        new FocusEvent('focusout', { bubbles: true, relatedTarget: preview(root) }),
+      );
+      await fixture.whenStable();
+      expect(hidden(root)).toBeFalse();
+      category.dispatchEvent(
+        new FocusEvent('focusout', {
+          bubbles: true,
+          relatedTarget: root.querySelector('.entity-scroll'),
+        }),
+      );
+      await fixture.whenStable();
+      expect(hidden(root)).toBeTrue();
+    });
+
+    it('ignores shortcuts such as Ctrl+A in the preview', async () => {
+      const { fixture, root } = await review();
+      const container = root.querySelector<HTMLElement>('.document-text')!;
+      const selection = document.getSelection()!;
+      selection.removeAllRanges();
+      selection.selectAllChildren(container);
+      const region = preview(root)!;
+      region.dispatchEvent(new KeyboardEvent('keyup', { key: 'a', ctrlKey: true, bubbles: true }));
+      region.dispatchEvent(new KeyboardEvent('keyup', { key: 'Control', bubbles: true }));
+      await fixture.whenStable();
+      expect(dialog(root)).toBeNull();
+      expect(selection.isCollapsed).toBeFalse();
+    });
+
+    it('offers to select listed data that is not selected instead of marking it again', async () => {
+      const { fixture, documents, root } = await review();
+      documents.setEntities(['entity-1'], false);
+      await fixture.whenStable();
+      await selectText(fixture, 'na Cor');
+      const form = dialog(root)!;
+      expect(form.querySelector('.overlap-message')!.textContent!.trim()).toBe(
+        'This text is already in the list, but it is not selected for anonymization.',
+      );
+      const action = form.querySelector<HTMLButtonElement>('.btn-primary')!;
+      expect(action.textContent!.trim()).toBe('Select it');
+      expect(document.activeElement).toBe(action);
+      action.click();
+      await fixture.whenStable();
+      expect(documents.isSelected('entity-1')).toBeTrue();
+      expect(dialog(root)).toBeNull();
+      expect(documents.analysis()!.entities.some((entity) => entity.manual)).toBeFalse();
+    });
+
+    it('moves focus to a new category name only when it was chosen with the pointer', async () => {
+      const { fixture, root } = await review();
+      await selectText(fixture, 'Medicação');
+      const category = dialog(root)!.querySelector('select')!;
+      // Arrow keys and End pass through "New category…" on a closed select.
+      category.dispatchEvent(new KeyboardEvent('keydown', { key: 'End', bubbles: true }));
+      category.value = 'new';
+      category.dispatchEvent(new Event('change'));
+      await fixture.whenStable();
+      expect(dialog(root)!.querySelector('input[type="text"]')).not.toBeNull();
+      expect(document.activeElement).toBe(category);
+      category.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
+      category.value = 'NAME';
+      category.dispatchEvent(new Event('change'));
+      category.value = 'new';
+      category.dispatchEvent(new Event('change'));
+      await fixture.whenStable();
+      expect(document.activeElement).toBe(dialog(root)!.querySelector('input[type="text"]'));
+    });
+
+    it('announces a category name exactly as typed', async () => {
+      const { fixture, root } = await review();
+      await selectText(fixture, 'Medicação');
+      const form = dialog(root)!;
+      const category = form.querySelector('select')!;
+      category.value = 'new';
+      category.dispatchEvent(new Event('change'));
+      await fixture.whenStable();
+      const name = form.querySelector<HTMLInputElement>('input[type="text"]')!;
+      name.value = 'Fees $$ and $&';
+      name.dispatchEvent(new Event('input'));
+      await fixture.whenStable();
+      form.querySelector<HTMLButtonElement>('button[type="submit"]')!.click();
+      await fixture.whenStable();
+      expect(root.querySelector('.manual-status')!.textContent).toBe('Added to Fees $$ and $&');
     });
   });
 });

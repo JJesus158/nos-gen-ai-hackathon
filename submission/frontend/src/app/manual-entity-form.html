@@ -1,13 +1,14 @@
 <div
   class="manual-entity-form"
   role="dialog"
+  tabindex="-1"
   data-bs-theme="light"
   [attr.aria-labelledby]="overlap() ? id + '-message' : id + '-title'"
   [attr.aria-describedby]="overlap() ? null : id + '-text'"
   (keydown.escape)="closed.emit()"
 >
   @if (overlap()) {
-    <div class="overlap-message" [id]="id + '-message'">{{ language.text().manualOverlap }}</div>
+    <div class="overlap-message" [id]="id + '-message'">{{ overlapMessage() }}</div>
     <div class="form-actions">
       <button
         #closeButton
@@ -17,6 +18,16 @@
       >
         {{ language.text().close }}
       </button>
+      @if (deselected()) {
+        <button
+          #actionButton
+          type="button"
+          class="btn btn-primary btn-sm"
+          (click)="selectExisting.emit()"
+        >
+          {{ language.text().selectExisting }}
+        </button>
+      }
     </div>
   } @else {
     <form (submit)="submit($event)">
@@ -29,6 +40,8 @@
         #categorySelect
         class="form-select form-select-sm"
         [id]="id + '-category'"
+        (pointerdown)="choosingWith('pointer')"
+        (keydown)="choosingWith('keyboard')"
         (change)="choose(categorySelect.value)"
       >
         @for (option of builtInCategories; track option.code) {

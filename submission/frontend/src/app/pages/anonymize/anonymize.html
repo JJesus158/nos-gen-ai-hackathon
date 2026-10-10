@@ -220,14 +220,20 @@
             </div>
             @for (selection of forms(); track selection.key) {
               <app-manual-entity-form
+                [class.is-hidden]="!formOpen()"
                 [style.top.px]="formPosition().top"
                 [style.left.px]="formPosition().left"
                 [text]="selection.text"
                 [overlap]="selection.overlap"
+                [deselected]="
+                  selection.overlap && documents.selectionState(selection.overlapped) === 'none'
+                "
                 [occurrences]="selection.occurrences.length"
                 [defaultCategory]="lastCategory()"
                 (added)="addManual($event)"
+                (selectExisting)="selectExisting()"
                 (closed)="closeForm(true)"
+                (focusout)="formFocusOut($event)"
               />
             }
           </div>

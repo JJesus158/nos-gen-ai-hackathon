@@ -1,3 +1,6 @@
+# Secrets (also covered by the root .gitignore)
+.env
+
 # Frontend (Angular)
 node_modules/
 .angular/

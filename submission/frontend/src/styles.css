@@ -8,6 +8,7 @@
   --well: #f8faff;
   --ink: #111827;
   --muted: #64748b;
+  --footer-text: #475569;
   --accent: #7048e8;
   --accent-text: #6337d4;
   --secondary: #0276a9;
@@ -44,6 +45,7 @@
   --well: #10172d;
   --ink: #f8fafc;
   --muted: #a0adc3;
+  --footer-text: #d2dcf0;
   --accent: #8257ff;
   --accent-text: #bea8ff;
   --secondary: #38bdf8;
@@ -85,16 +87,25 @@ body {
   -webkit-font-smoothing: antialiased;
   isolation: isolate;
 }
+::selection {
+  color: #fff;
+  background: var(--accent);
+}
+[data-bs-theme='dark'] ::selection {
+  color: #fff;
+  background: #7654e8;
+}
 body::before {
   content: '';
   position: fixed;
   inset: -100px;
   z-index: -1;
   pointer-events: none;
-  background:
-    radial-gradient(ellipse at 5% 10%, rgba(124, 111, 220, 0.12), transparent 65%),
-    radial-gradient(ellipse at 95% 30%, rgba(74, 144, 226, 0.1), transparent 70%),
-    radial-gradient(ellipse at 25% 90%, rgba(94, 190, 170, 0.08), transparent 65%);
+  background: url('/dataveil-background.png') center / cover no-repeat;
+  opacity: 0.03;
+}
+[data-bs-theme='dark'] body::before {
+  opacity: 0.1;
 }
 * {
   box-sizing: border-box;
@@ -132,9 +143,7 @@ input:focus-visible,
   align-items: center;
   justify-content: center;
   gap: 10px;
-  transition:
-    background-color 0.15s,
-    border-color 0.15s;
+  transition: none;
   box-shadow: none;
 }
 .btn-primary {
@@ -231,6 +240,19 @@ input:focus-visible,
 .panel-heading h2 {
   font-size: 0.85rem;
 }
+.preview-panel .panel-heading h2 {
+  margin-left: 0;
+  text-align: left;
+}
+.preview-file-name {
+  max-width: 55%;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 0.68rem;
+  text-align: right;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .sample-label {
   color: var(--muted);
   font-size: 0.68rem;
@@ -242,13 +264,16 @@ input:focus-visible,
   --accent-soft: #7048e814;
   --paper-line: #e2e8f0;
   border: 1px solid var(--paper-line);
-  border-radius: 2px;
+  width: min(100% - 32px, 860px);
+  min-height: 260px;
+  margin: 20px auto;
+  border-radius: 4px;
   background: #fff;
   color: var(--ink);
-  margin: 12px;
-  padding: 16px 18px;
-  font-size: 0.82rem;
+  padding: 28px 32px;
+  font-size: 0.86rem;
   overflow-wrap: anywhere;
+  box-shadow: 0 10px 24px rgb(5 10 30 / 16%);
 }
 .paper-brand {
   display: block;
@@ -268,7 +293,7 @@ input:focus-visible,
 }
 .document-text {
   white-space: pre-wrap;
-  line-height: 1.6;
+  line-height: 1.7;
 }
 .document-text mark {
   padding: 0;
@@ -303,6 +328,19 @@ mark {
   gap: 12px;
   margin: 0;
 }
+.workspace-page > .document-workspace {
+  order: 1;
+}
+.workspace-page > app-document-progress {
+  order: 2;
+}
+.workspace-page > .page-actions {
+  order: 0;
+}
+.page-action-group {
+  display: flex;
+  gap: 12px;
+}
 .page-actions .btn {
   min-width: 0;
 }
@@ -336,8 +374,8 @@ mark {
   flex: 1;
   flex-direction: column;
   min-height: 0;
-  gap: 10px;
-  padding: 16px 0 12px;
+  gap: 14px;
+  padding: 16px 0 10px;
   animation: page-enter 300ms cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 .selection-page {
@@ -455,7 +493,7 @@ mark {
   }
   .workspace-page {
     gap: 8px;
-    padding: 12px 0;
+    padding: 12px 0 8px;
   }
   .document-workspace {
     grid-template-columns: minmax(0, 1fr);
@@ -472,7 +510,7 @@ mark {
 @media (max-height: 620px) {
   .workspace-page {
     gap: 8px;
-    padding: 10px 0;
+    padding: 10px 0 8px;
   }
   .page-heading h1 {
     font-size: 1.4rem;

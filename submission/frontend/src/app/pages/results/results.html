@@ -14,14 +14,10 @@
       <section class="panel preview-panel">
         <div class="panel-heading">
           <h2 id="original-title">{{ language.text().original }}</h2>
-          <span class="sample-label">{{ language.text().originalTag }}</span>
+          <span class="preview-file-name">{{ documents.file()?.name }}</span>
         </div>
         <div class="paper-scroll" role="region" aria-labelledby="original-title" tabindex="0">
           <div class="paper">
-            @if (result.source === 'example') {
-              <span class="paper-brand">{{ language.text().sampleDocument }}</span>
-            }
-            <h3>{{ documents.file()?.name }}</h3>
             <div class="document-text">
               @for (segment of documents.originalSegments(); track $index) {
                 @if (segment.sensitive && documents.isSelected(segment.entityId!)) {
@@ -41,21 +37,39 @@
       <section class="panel preview-panel protected-panel">
         <div class="panel-heading">
           <h2 id="anonymized-title">{{ language.text().anonymized }}</h2>
-          <span class="sample-label protected-label">{{ language.text().anonymizedTag }}</span>
+          <span class="preview-file-name">{{ result.download.name }}</span>
         </div>
         <div class="paper-scroll" role="region" aria-labelledby="anonymized-title" tabindex="0">
           <div class="paper">
-            @if (result.source === 'example') {
-              <span class="paper-brand">{{ language.text().sampleDocument }}</span>
-            }
-            <h3>{{ result.download.name }}</h3>
-            <div class="document-text">{{ result.anonymizedText }}</div>
+            <div class="document-text">
+              @for (segment of displaySegments(); track $index) {
+                <span [class.masked-text]="segment.masked && maskMode() === 'blur'">{{ segment.text }}</span>
+              }
+            </div>
           </div>
+        </div>
+        <div class="mask-controls" role="group" [attr.aria-label]="language.text().maskMode">
+          <span class="mask-label">{{ language.text().maskMode }}</span>
+          <button
+            type="button"
+            class="mask-option"
+            [class.is-selected]="maskMode() === 'blur'"
+            [attr.aria-pressed]="maskMode() === 'blur'"
+            (click)="maskMode.set('blur')"
+          >{{ language.text().blur }}</button>
+          <button
+            type="button"
+            class="mask-option"
+            [class.is-selected]="maskMode() === 'asterisk'"
+            [attr.aria-pressed]="maskMode() === 'asterisk'"
+            (click)="maskMode.set('asterisk')"
+          >{{ language.text().asterisks }}</button>
         </div>
       </section>
     </div>
     <div class="page-actions">
-      <button type="button" class="btn btn-outline-secondary" (click)="backToReview()">
+      <div class="page-action-group">
+        <button type="button" class="btn btn-outline-secondary" (click)="backToReview()">
         <svg
           width="12"
           height="12"
@@ -66,20 +80,26 @@
         >
           <path [attr.d]="backIcon.icon[4]" />
         </svg>
-        {{ language.text().backToReview }}</button
-      ><button type="button" class="btn btn-primary" (click)="download()">
-        {{ language.text().download }}
-        <svg
-          width="12"
-          height="12"
-          [attr.viewBox]="'0 0 ' + downloadIcon.icon[0] + ' ' + downloadIcon.icon[1]"
-          fill="currentColor"
-          aria-hidden="true"
-          focusable="false"
-        >
-          <path [attr.d]="downloadIcon.icon[4]" />
-        </svg>
-      </button>
+          {{ language.text().back }}</button>
+      </div>
+      <div class="page-action-group">
+        <button type="button" class="btn btn-outline-secondary" (click)="restart.emit()">
+          {{ language.text().chooseAnother }}
+        </button>
+        <button type="button" class="btn btn-primary" (click)="download()">
+          {{ language.text().download }}
+          <svg
+            width="12"
+            height="12"
+            [attr.viewBox]="'0 0 ' + downloadIcon.icon[0] + ' ' + downloadIcon.icon[1]"
+            fill="currentColor"
+            aria-hidden="true"
+            focusable="false"
+          >
+            <path [attr.d]="downloadIcon.icon[4]" />
+          </svg>
+        </button>
+      </div>
     </div>
   </div>
 }

@@ -11,6 +11,46 @@
 .protected-label {
   color: var(--secondary);
 }
+.comparison .preview-panel .panel-heading {
+  justify-content: space-between;
+}
+.mask-controls {
+  position: sticky;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  padding: 8px 14px;
+  border-top: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--muted);
+  font-size: 0.72rem;
+}
+.mask-label {
+  margin-right: 3px;
+}
+.mask-option:first-of-type {
+  margin-left: auto;
+}
+.mask-option {
+  border: 1px solid var(--line-bright);
+  border-radius: 4px;
+  padding: 3px 8px;
+  color: var(--muted);
+  background: transparent;
+  font: inherit;
+  cursor: pointer;
+}
+.mask-option.is-selected {
+  border-color: var(--accent-text);
+  color: var(--accent-text);
+  background: var(--accent-soft);
+}
+.masked-text {
+  filter: blur(5px);
+  user-select: none;
+}
 @media (max-width: 575px) {
   .comparison {
     grid-template-columns: minmax(0, 1fr);

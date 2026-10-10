@@ -42,12 +42,41 @@
   max-width: 800px;
   margin: 16px auto 0;
 }
+.selection-page > app-document-progress {
+  margin-top: 32px;
+}
 .upload-panel {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
   display: flex;
   flex: 1;
   flex-direction: column;
   min-height: 0;
   padding: 16px;
+  background: color-mix(in srgb, var(--surface) 44%, transparent);
+  border-color: color-mix(in srgb, var(--line-bright) 62%, transparent);
+  box-shadow:
+    0 12px 28px rgb(15 23 42 / 7%),
+    inset 0 1px 0 rgb(255 255 255 / 10%),
+    inset 0 -1px 0 rgb(15 23 42 / 4%);
+  -webkit-backdrop-filter: blur(16px);
+  backdrop-filter: blur(24px);
+}
+.upload-panel::before {
+  position: absolute;
+  z-index: 0;
+  inset: 0;
+  pointer-events: none;
+  border-radius: inherit;
+  background:
+    radial-gradient(ellipse at 18% 0%, rgb(255 255 255 / 6%), transparent 42%),
+    linear-gradient(115deg, rgb(255 255 255 / 2%), transparent 34%);
+  content: '';
+}
+.upload-panel > * {
+  position: relative;
+  z-index: 1;
 }
 .upload-heading {
   flex-shrink: 0;
@@ -168,10 +197,13 @@
   flex-shrink: 0;
   display: flex;
   justify-content: flex-end;
-  margin-top: 12px;
+  margin-top: 16px;
 }
 .analysis-grid {
-  grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1.8fr) minmax(220px, 0.55fr);
+}
+.analysis-grid .paper {
+  box-shadow: none;
 }
 .anonymization-modal-backdrop {
   position: fixed;

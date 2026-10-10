@@ -4,7 +4,6 @@
       <h1 id="intro-title" tabindex="-1">{{ language.text().heroTitle }}</h1>
       <p>{{ language.text().heroDescription }}</p>
     </section>
-    <app-document-progress />
     <section
       id="submit-document"
       class="upload-section"
@@ -133,6 +132,7 @@
         documents.processing() ? language.text().processing : ''
       }}</span>
     </section>
+    <app-document-progress />
   </div>
 } @else if (documents.result()) {
   <app-results (restart)="remove()" (back)="backToReview()" />
@@ -182,14 +182,13 @@
     >
       <section class="panel preview-panel">
         <div class="panel-heading">
-          <h2 id="preview-title">{{ language.text().documentPreview }}</h2>
+          <h2 id="preview-title">
+            {{ language.text().documentPreview }}
+          </h2>
+          <span class="preview-file-name">{{ documents.file()?.name }}</span>
         </div>
         <div class="paper-scroll" role="region" aria-labelledby="preview-title" tabindex="0">
           <div class="paper">
-            @if (analysis.source === 'example') {
-              <span class="paper-brand">{{ language.text().sampleDocument }}</span>
-            }
-            <h3>{{ documents.file()?.name }}</h3>
             <div class="document-text">
               @for (segment of documents.originalSegments(); track $index) {
                 @if (segment.sensitive) {
@@ -210,7 +209,8 @@
       <app-entity-selection />
     </div>
     <div class="page-actions">
-      <button type="button" class="btn btn-outline-secondary" (click)="backToDocument()">
+      <div class="page-action-group">
+        <button type="button" class="btn btn-outline-secondary" (click)="backToDocument()">
         <svg
           width="12"
           height="12"
@@ -221,8 +221,9 @@
         >
           <path [attr.d]="backIcon.icon[4]" />
         </svg>
-        {{ language.text().back }}</button
-      ><button
+          {{ language.text().back }}</button>
+      </div>
+      <button
         type="button"
         class="btn btn-primary"
         [disabled]="documents.processing()"

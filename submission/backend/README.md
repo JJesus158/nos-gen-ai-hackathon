@@ -13,6 +13,11 @@ document.pdf ──extract_text()──▶ text (one line per PDF line, no empty
 The model only *points* at sensitive text; the masking is done in code, so
 lines, spacing and every other word stay byte for byte the same.
 
+Scanned pages (an image with no text layer) are read with Tesseract OCR,
+in Portuguese and English, when it is installed (`brew install tesseract
+tesseract-lang` on macOS; the Docker image includes it). The anonymized PDF
+then has the masked words erased from the image itself.
+
 ## Setup
 
 ```bash

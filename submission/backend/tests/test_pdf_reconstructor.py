@@ -3,7 +3,7 @@ from pathlib import Path
 import pymupdf
 import pytest
 
-from anonymizer.extract import extract_text_from_bytes
+from anonymizer.extract import extract_text_from_bytes, ocr_language
 
 from anonymizer.pdf_reconstructor import (
     reconstruct_pdf,
@@ -380,3 +380,24 @@ def test_challenge_pdf_rebuilds_with_the_extracted_text():
     assert "Maria Conceição" not in text
     assert "Carlos Mendes" not in text
     assert "Relatório de Admissão - Centro Médico Lisboa" in text
+
+
+@pytest.mark.skipif(not ocr_language(), reason="Tesseract is not installed")
+def test_scanned_pdf_erases_the_masked_pixels(scanned_pdf):
+    """No text layer: the name is found by OCR and erased from the image."""
+    pdf_data = scanned_pdf(["Nome: Ana Correia", "NIF: 123456789"])
+
+    result, unmatched = reconstruct_pdf_with_report(
+        pdf_data, [Span(1, "Ana Correia", Category.NAME)]
+    )
+
+    assert unmatched == []
+    with pymupdf.open(stream=result, filetype="pdf") as document:
+        page = document[0]
+        ocr = page.get_textpage_ocr(
+            language=ocr_language(), dpi=300, full=True,
+        )
+        seen = page.get_text("text", textpage=ocr)
+    assert "Ana" not in seen
+    assert "Correia" not in seen
+    assert "123456789" in seen

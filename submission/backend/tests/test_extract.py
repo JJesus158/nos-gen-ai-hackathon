@@ -3,6 +3,7 @@ from pathlib import Path
 import pymupdf
 import pytest
 
+from anonymizer import extract
 from anonymizer.extract import extract_text, extract_text_from_bytes
 
 CHALLENGE_PDF = (
@@ -103,3 +104,25 @@ def test_extract_text_from_bytes():
     result = extract_text_from_bytes(pdf_bytes)
 
     assert "Nome: Ana Correia" in result
+
+
+needs_ocr = pytest.mark.skipif(
+    not extract.ocr_language(), reason="Tesseract is not installed",
+)
+
+
+@needs_ocr
+def test_scanned_page_is_read_with_ocr(scanned_pdf):
+    text = extract_text_from_bytes(
+        scanned_pdf(["Nome: Ana Correia", "NIF: 123456789"])
+    )
+
+    assert text.split("\n") == ["Nome: Ana Correia", "NIF: 123456789"]
+
+
+def test_scanned_page_without_tesseract_has_no_text(scanned_pdf,
+                                                    monkeypatch):
+    monkeypatch.setattr(extract, "ocr_language", lambda: "")
+
+    with pytest.raises(ValueError):
+        extract_text_from_bytes(scanned_pdf(["Nome: Ana Correia"]))

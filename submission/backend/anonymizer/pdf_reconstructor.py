@@ -6,9 +6,11 @@ from typing import List, Sequence, Tuple
 
 import pymupdf
 
-from anonymizer.extract import extract_text_from_bytes
+from anonymizer.extract import extract_text_from_bytes, page_textpage
 from anonymizer.masker import LineRange, mask_with_positions, runs
 from anonymizer.spans import Span
+
+OCR_PADDING = 1.5  # points around OCR word boxes
 
 
 def _insert_mask(page: pymupdf.Page, rect: pymupdf.Rect,
@@ -102,6 +104,7 @@ def reconstruct_pdf_with_report(
     word_locations = {}
     page_word_locations = {}
     rotated_lines = {}
+    ocr_pages = set()
     line_number = 0
 
     with pymupdf.open(
@@ -111,7 +114,11 @@ def reconstruct_pdf_with_report(
 
         # Step 1: Match text words to PDF coordinates.
         for page_index, page in enumerate(document):
-            pdf_words = page.get_text("words", sort=False)
+            # Scanned pages: OCR words and their boxes, as extract saw them.
+            ocr = page_textpage(page)
+            if ocr is not None:
+                ocr_pages.add(page_index)
+            pdf_words = page.get_text("words", sort=False, textpage=ocr)
             word_cursor = 0
             page_word_locations[page_index] = []
             rotated_lines[page_index] = [
@@ -119,7 +126,7 @@ def reconstruct_pdf_with_report(
                 for block in page.get_text(
                     "dict", flags=(
                         pymupdf.TEXTFLAGS_DICT & ~pymupdf.TEXT_PRESERVE_IMAGES
-                    ),
+                    ), textpage=ocr,
                 )["blocks"]
                 if block["type"] == 0
                 for line in block["lines"]
@@ -131,7 +138,7 @@ def reconstruct_pdf_with_report(
             page_lines = [
                 line.rstrip()
                 for line in page.get_text(
-                    "text", sort=False
+                    "text", sort=False, textpage=ocr,
                 ).split("\n")
                 if line.strip()
             ]
@@ -217,6 +224,14 @@ def reconstruct_pdf_with_report(
             for _, box in positions[1:]:
                 rect |= box
 
+            # OCR boxes hug the glyphs; pad them so no sliver of a
+            # letter is left in the scanned image.
+            if page_index in ocr_pages:
+                rect = pymupdf.Rect(
+                    rect.x0 - OCR_PADDING, rect.y0 - OCR_PADDING,
+                    rect.x1 + OCR_PADDING, rect.y1 + OCR_PADDING,
+                )
+
             # MuPDF removes every character whose box overlaps this area.
             # Reject ambiguous geometry before returning a damaged document.
             if any(
@@ -263,8 +278,10 @@ def reconstruct_pdf_with_report(
 
         # Step 3: Apply redactions to the affected pages.
         for page_index in changed_pages:
+            # images: on scanned pages the words are pixels, so the
+            # pixels under each masked run are erased from the image.
             document[page_index].apply_redactions(
-                graphics=0
+                images=pymupdf.PDF_REDACT_IMAGE_PIXELS, graphics=0,
             )
 
         for page_index, rect, replacement in masks:

@@ -58,6 +58,13 @@ export const exampleDocumentProcessor: DocumentProcessor = {
       source: 'example',
     };
   },
+  /** A fixed summary of the fixture, hiding everything it masks; the selection is ignored. */
+  async summarize(_analysis, _selectedEntityIds, language, signal) {
+    checkCancellation(signal);
+    return language === 'pt-PT'
+      ? 'Ficha de acompanhamento de uma paciente. O documento identifica a pessoa, a idade, o NIF, a morada e o email, todos ocultos. Regista um diagnóstico e a medicação prescrita, também ocultos, e indica um contacto de emergência.'
+      : 'Follow-up record of a patient. The document identifies the person, their age, tax number, address and email, all hidden. It records a diagnosis and the prescribed medication, also hidden, and names an emergency contact.';
+  },
 };
 
 function checkCancellation(signal: AbortSignal): void {

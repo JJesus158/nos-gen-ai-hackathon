@@ -1,10 +1,11 @@
 import base64
+import json
 
 import pymupdf
 import pytest
 from fastapi.testclient import TestClient
 
-from anonymizer import detector, pdf_reconstructor
+from anonymizer import detector, gemini_client, pdf_reconstructor
 from anonymizer.extract import extract_text_from_bytes
 from anonymizer.spans import Category, Span
 from api import main
@@ -276,3 +277,67 @@ def test_malformed_manual_entities_are_schema_errors(client):
     assert anonymize(client, analysis["id"], [], too_many).status_code == 422
     most = [manual(0, 4)] * main.MAX_MANUAL_ENTITIES
     assert anonymize(client, analysis["id"], [], most).status_code == 200
+
+
+def summarize(client, analysis_id, ids, manual_entities=None, language=None):
+    body = {"selectedEntityIds": ids}
+    if manual_entities is not None:
+        body["manualEntities"] = manual_entities
+    if language is not None:
+        body["language"] = language
+    return client.post(f"/api/documents/{analysis_id}/summarize", json=body)
+
+
+def test_summarize_sends_the_masked_text_and_returns_the_summary(
+        client, monkeypatch):
+    prompts = []
+
+    def fake_call(model, prompt, schema):
+        prompts.append(prompt)
+        return json.dumps({"summary": "Ficha de uma pessoa, com o NIF e um "
+                                      "contacto ocultos."})
+
+    monkeypatch.setattr(gemini_client, "_call", fake_call)
+    analysis = analyze(client).json()
+    surname = analysis["originalText"].rindex("Correia")
+
+    response = summarize(client, analysis["id"], ["entity-1", "entity-2"],
+                         [manual(surname, surname + 7)], "pt-PT")
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "summary": "Ficha de uma pessoa, com o NIF e um contacto ocultos.",
+    }
+    assert len(prompts) == 1
+    assert "Ana Correia" not in prompts[0]
+    assert "123456789" not in prompts[0]
+    # The second "Ana" was not selected, so the model may see it.
+    assert "Nome: * *\nNIF: *\nContacto: Ana *" in prompts[0]
+    assert "European Portuguese" in prompts[0]
+
+
+def test_summarize_scrubs_hidden_words_the_model_guessed(client, monkeypatch):
+    monkeypatch.setattr(gemini_client, "_call", lambda m, p, s: json.dumps(
+        {"summary": "Contacto de Ana Correia: 123456789."}))
+    analysis = analyze(client).json()
+    ids = [e["id"] for e in analysis["entities"]]
+
+    body = summarize(client, analysis["id"], ids).json()
+
+    # "Ana" is still visible nowhere once every occurrence is selected.
+    assert body["summary"] == "Contacto de * *: *."
+
+
+def test_summarize_errors_follow_the_contract(client):
+    analysis = analyze(client).json()
+    missing = summarize(client, "nope", [])
+    assert missing.status_code == 404
+    assert summarize(client, analysis["id"], ["entity-9"]).status_code == 400
+    assert summarize(client, analysis["id"], [],
+                     [manual(5, 5)]).status_code == 400
+    assert summarize(client, analysis["id"], [],
+                     language="fr").status_code == 422
+    # The offline fixture makes the model call fail: the contract's 500.
+    failed = summarize(client, analysis["id"], ["entity-1"], language="en")
+    assert failed.status_code == 500
+    assert failed.json() == {"message": "Summary failed"}

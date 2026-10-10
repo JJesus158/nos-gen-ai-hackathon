@@ -40,18 +40,77 @@
       </section>
       <section class="panel preview-panel protected-panel">
         <div class="panel-heading">
-          <h2 id="anonymized-title">{{ language.text().anonymized }}</h2>
-          <span class="sample-label protected-label">{{ language.text().anonymizedTag }}</span>
+          <h2 id="anonymized-title">
+            {{ view() === 'summary' ? language.text().summaryTitle : language.text().anonymized }}
+          </h2>
+          @if (documents.summary() !== null) {
+            <div class="view-switch" role="group" [attr.aria-label]="language.text().viewLabel">
+              <button
+                type="button"
+                class="view-option"
+                [class.is-selected]="view() === 'masked'"
+                [attr.aria-pressed]="view() === 'masked'"
+                (click)="view.set('masked')"
+              >
+                {{ language.text().maskedView }}
+              </button>
+              <button
+                type="button"
+                class="view-option"
+                [class.is-selected]="view() === 'summary'"
+                [attr.aria-pressed]="view() === 'summary'"
+                (click)="view.set('summary')"
+              >
+                {{ language.text().summaryView }}
+              </button>
+            </div>
+          } @else {
+            <button
+              type="button"
+              class="btn btn-primary btn-sm summarize-button"
+              [disabled]="documents.summarizing()"
+              (click)="summarize()"
+            >
+              @if (documents.summarizing()) {
+                <span class="spinner-border spinner-border-sm" aria-hidden="true"></span>
+                {{ language.text().summarizing }}
+              } @else {
+                <svg
+                  width="12"
+                  height="12"
+                  [attr.viewBox]="'0 0 ' + summarizeIcon.icon[0] + ' ' + summarizeIcon.icon[1]"
+                  fill="currentColor"
+                  aria-hidden="true"
+                  focusable="false"
+                >
+                  <path [attr.d]="summarizeIcon.icon[4]" />
+                </svg>
+                {{ language.text().summarize }}
+              }
+            </button>
+          }
         </div>
+        @if (documents.summaryError()) {
+          <p class="summary-error" role="alert">{{ language.text().summaryError }}</p>
+        }
         <div class="paper-scroll" role="region" aria-labelledby="anonymized-title" tabindex="0">
           <div class="paper">
-            @if (result.source === 'example') {
-              <span class="paper-brand">{{ language.text().sampleDocument }}</span>
+            @if (view() === 'summary' && documents.summary(); as summary) {
+              <span class="paper-brand">{{ language.text().summaryNote }}</span>
+              <h3>{{ language.text().summaryTitle }}</h3>
+              <div class="document-text">{{ summary }}</div>
+            } @else {
+              @if (result.source === 'example') {
+                <span class="paper-brand">{{ language.text().sampleDocument }}</span>
+              }
+              <h3>{{ result.download.name }}</h3>
+              <div class="document-text">{{ result.anonymizedText }}</div>
             }
-            <h3>{{ result.download.name }}</h3>
-            <div class="document-text">{{ result.anonymizedText }}</div>
           </div>
         </div>
+        <span class="visually-hidden" role="status">{{
+          documents.summarizing() ? language.text().summarizing : ''
+        }}</span>
       </section>
     </div>
     <div class="page-actions">
@@ -66,20 +125,28 @@
         >
           <path [attr.d]="backIcon.icon[4]" />
         </svg>
-        {{ language.text().backToReview }}</button
-      ><button type="button" class="btn btn-primary" (click)="download()">
-        {{ language.text().download }}
-        <svg
-          width="12"
-          height="12"
-          [attr.viewBox]="'0 0 ' + downloadIcon.icon[0] + ' ' + downloadIcon.icon[1]"
-          fill="currentColor"
-          aria-hidden="true"
-          focusable="false"
-        >
-          <path [attr.d]="downloadIcon.icon[4]" />
-        </svg>
+        {{ language.text().backToReview }}
       </button>
+      <div class="page-action-group">
+        @if (documents.summary() !== null) {
+          <button type="button" class="btn btn-outline-secondary" (click)="downloadSummary()">
+            {{ language.text().downloadSummary }}
+          </button>
+        }
+        <button type="button" class="btn btn-primary" (click)="download()">
+          {{ language.text().download }}
+          <svg
+            width="12"
+            height="12"
+            [attr.viewBox]="'0 0 ' + downloadIcon.icon[0] + ' ' + downloadIcon.icon[1]"
+            fill="currentColor"
+            aria-hidden="true"
+            focusable="false"
+          >
+            <path [attr.d]="downloadIcon.icon[4]" />
+          </svg>
+        </button>
+      </div>
     </div>
   </div>
 }

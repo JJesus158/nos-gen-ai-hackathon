@@ -135,6 +135,31 @@ The frontend decodes the bytes into a `Blob` and downloads the file unchanged. P
 
 Successful generation advances progress through anonymization (step 3) to results (step 4). Generation failures return to review with the user's choices preserved. Retrying with the same analysis and selection must remain safe; the API controls retention and expiration. Base64 increases response size; a binary download endpoint can replace it later if needed.
 
+## 3. Summarize the anonymized document
+
+`POST /api/documents/{analysisId}/summarize`
+
+Body: `application/json`, the same `selectedEntityIds` and optional `manualEntities` as the anonymize request, plus an optional `language`: `"pt-PT"` or `"en"`. Without it, the summary is in the language of the document.
+
+```json
+{
+  "selectedEntityIds": ["entity-1"],
+  "language": "pt-PT"
+}
+```
+
+The backend masks the document exactly as anonymize would for that selection, and sends **only the masked text** to the model, which rewrites it as a readable summary that keeps the structure and the visible facts and leaves out everything hidden. The hidden values never reach the model; as a last check, a hidden word that still appears in the answer is replaced by `*`.
+
+HTTP `200`, `Content-Type: application/json`:
+
+```json
+{
+  "summary": "Relatório de admissão de uma paciente adulta, com os dados de identificação e de contacto omitidos. ..."
+}
+```
+
+`summary` is required, nonempty plain text. The frontend renders it as text and may offer it as a `.txt` download; it does not alter it. Invalid selections return `400` or `422` as above, an unknown or expired analysis `404`, an unsupported `language` `422`, and a model failure `500`.
+
 ## Errors and cancellation
 
 Return a non-success HTTP status, optionally with `{ "message": "..." }`:

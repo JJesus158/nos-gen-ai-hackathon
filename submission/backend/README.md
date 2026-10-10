@@ -64,6 +64,7 @@ Implements [`../frontend/API_CONTRACT.md`](../frontend/API_CONTRACT.md):
 | Endpoint | Does |
 |---|---|
 | `POST /api/documents/analyze` (multipart `file`) | PDF → text → Gemini detection → one entity per occurrence with UTF-16 offsets |
+| `POST /api/documents/{id}/summarize` (same body plus `"language": "pt-PT"` or `"en"`) | masks the document for that selection and sends only the masked text to Gemini, which rewrites it as a readable summary without the hidden data; a hidden word still in the answer becomes `*` |
 | `POST /api/documents/{id}/anonymize` (`{"selectedEntityIds": [...], "manualEntities": [...]}`) | masks only the selected occurrences, plus the ranges the user marked by hand (optional `manualEntities`: UTF-16 `start`/`end` and a `type`, masked exactly where they are; an invalid range gives `400`), and returns the preview text plus the download in base64: the uploaded PDF rebuilt with those words redacted (`pdf_reconstructor`), or the masked `.txt` if the PDF cannot be rebuilt safely |
 
 Analyses live in memory for one hour. Errors come back as `{"message": "..."}`

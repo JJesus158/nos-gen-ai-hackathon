@@ -13,6 +13,15 @@ export interface DocumentAnonymizationApiRequest {
   }[];
 }
 
+export interface DocumentSummaryApiRequest extends DocumentAnonymizationApiRequest {
+  /** 'en' or 'pt-PT'; the backend writes the summary in that language. */
+  readonly language: string;
+}
+
+export interface DocumentSummaryApiResponse {
+  readonly summary: string;
+}
+
 export interface DocumentAnonymizationApiResponse {
   readonly anonymizedText: string;
   readonly download: {
@@ -47,21 +56,9 @@ export function createApiProcessor(endpoint: string): DocumentProcessor {
     },
     async anonymize(analysis, selectedEntityIds, signal): Promise<ProcessedDocument> {
       const selected = new Set(selectedEntityIds);
-      const manual = new Set(
-        analysis.entities.filter((entity) => entity.manual).map((entity) => entity.id),
-      );
-      const manualEntities = analysis.entities
-        .filter((entity) => entity.manual && selected.has(entity.id))
-        .sort((a, b) => a.start - b.start)
-        .map(({ start, end, type }) => ({ start, end, type }));
-      const body: DocumentAnonymizationApiRequest = {
-        selectedEntityIds: selectedEntityIds.filter((id) => !manual.has(id)),
-        // The key is left out when nothing was marked by hand, so those requests stay unchanged.
-        ...(manualEntities.length ? { manualEntities } : {}),
-      };
       const value = (await request(`${base}/${encodeURIComponent(analysis.id)}/anonymize`, {
         headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
+        body: JSON.stringify(selectionBody(analysis, selectedEntityIds)),
         signal,
       })) as DocumentAnonymizationApiResponse;
       if (
@@ -89,6 +86,41 @@ export function createApiProcessor(endpoint: string): DocumentProcessor {
         source: 'api',
       };
     },
+    async summarize(analysis, selectedEntityIds, language, signal): Promise<string> {
+      const body: DocumentSummaryApiRequest = {
+        ...selectionBody(analysis, selectedEntityIds),
+        language,
+      };
+      const value = (await request(`${base}/${encodeURIComponent(analysis.id)}/summarize`, {
+        headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+        signal,
+      })) as DocumentSummaryApiResponse;
+      if (!value || typeof value.summary !== 'string' || !value.summary.trim()) {
+        throw new Error('Invalid API summary response');
+      }
+      return value.summary;
+    },
+  };
+}
+
+/** The selection as the contract sends it: detected IDs apart from the ranges marked by hand. */
+function selectionBody(
+  analysis: AnalyzedDocument,
+  selectedEntityIds: readonly string[],
+): DocumentAnonymizationApiRequest {
+  const selected = new Set(selectedEntityIds);
+  const manual = new Set(
+    analysis.entities.filter((entity) => entity.manual).map((entity) => entity.id),
+  );
+  const manualEntities = analysis.entities
+    .filter((entity) => entity.manual && selected.has(entity.id))
+    .sort((a, b) => a.start - b.start)
+    .map(({ start, end, type }) => ({ start, end, type }));
+  return {
+    selectedEntityIds: selectedEntityIds.filter((id) => !manual.has(id)),
+    // The key is left out when nothing was marked by hand, so those requests stay unchanged.
+    ...(manualEntities.length ? { manualEntities } : {}),
   };
 }
 

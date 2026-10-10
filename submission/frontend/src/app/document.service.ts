@@ -5,6 +5,14 @@ import {
   DocumentEntity,
   ProcessedDocument,
 } from './document-processor';
+import {
+  CATEGORY_DETAILS,
+  MAX_CATEGORY_LABEL_LENGTH,
+  customCategoryCode,
+  normalizeCategoryLabel,
+} from './document-categories';
+import { LanguageService } from './language.service';
+import { TextRange, maskReplacement, overlaps, splitsSurrogatePair } from './manual-selection';
 
 export type DocumentStage = 'document' | 'analysis' | 'anonymization' | 'results';
 export type SelectionState = 'all' | 'some' | 'none';
@@ -14,6 +22,7 @@ export const MIN_ANONYMIZATION_DURATION = 5000;
 @Injectable({ providedIn: 'root' })
 export class DocumentService {
   private readonly processor = inject(DOCUMENT_PROCESSOR);
+  private readonly language = inject(LanguageService);
   private readonly selected = signal<File | null>(null);
   private readonly analyzed = signal<AnalyzedDocument | null>(null);
   private readonly processed = signal<ProcessedDocument | null>(null);
@@ -21,8 +30,10 @@ export class DocumentService {
   private readonly currentStage = signal<DocumentStage>('document');
   private readonly pending = signal(false);
   private readonly failed = signal(false);
+  private readonly categories = signal<readonly string[]>([]);
   private request = 0;
   private controller?: AbortController;
+  private manualCount = 0;
 
   readonly file = this.selected.asReadonly();
   readonly analysis = this.analyzed.asReadonly();
@@ -32,6 +43,8 @@ export class DocumentService {
   readonly stage = this.currentStage.asReadonly();
   readonly processing = this.pending.asReadonly();
   readonly error = this.failed.asReadonly();
+  /** Names of the categories created by the user in this session; never persisted. */
+  readonly customCategories = this.categories.asReadonly();
   readonly originalSegments = computed(() => {
     const analysis = this.analysis();
     if (!analysis) return [];
@@ -122,6 +135,82 @@ export class DocumentService {
     this.setEntities(this.analysis()?.entities.map((entity) => entity.id) ?? [], checked);
   }
 
+  /**
+   * Adds occurrences the user marked by hand to the analysis, selected, and returns their IDs in
+   * the order of `ranges`. All or nothing: returns [] and changes nothing when any range is out of
+   * bounds, empty, splits a surrogate pair or overlaps identified data or another range.
+   */
+  addManualEntities(ranges: readonly TextRange[], type: string): readonly string[] {
+    const analysis = this.analysis();
+    if (!analysis || this.processing() || !type.trim() || !ranges.length) return [];
+    const text = analysis.originalText;
+    const sorted = [...ranges].sort((a, b) => a.start - b.start);
+    const valid = sorted.every(
+      (range, index) =>
+        Number.isInteger(range.start) &&
+        Number.isInteger(range.end) &&
+        range.start >= 0 &&
+        range.end > range.start &&
+        range.end <= text.length &&
+        !splitsSurrogatePair(text, range.start) &&
+        !splitsSurrogatePair(text, range.end) &&
+        (index === 0 || sorted[index - 1].end <= range.start) &&
+        !overlaps(range, analysis.entities),
+    );
+    if (!valid) return [];
+    const ids = new Set(analysis.entities.map((entity) => entity.id));
+    const created = ranges.map(({ start, end }): DocumentEntity => {
+      let id = `manual-${++this.manualCount}`;
+      while (ids.has(id)) id = `manual-${++this.manualCount}`;
+      const replacement = maskReplacement(text.slice(start, end));
+      return { id, start, end, type, replacement, manual: true };
+    });
+    const entities = [...analysis.entities, ...created].sort((a, b) => a.start - b.start);
+    const selection = new Set([...this.selectedEntityIds(), ...created.map((entity) => entity.id)]);
+    this.analyzed.set({ ...analysis, entities });
+    this.selection.set(
+      entities.filter((entity) => selection.has(entity.id)).map((entity) => entity.id),
+    );
+    this.processed.set(null);
+    this.currentStage.set('analysis');
+    this.failed.set(false);
+    return created.map((entity) => entity.id);
+  }
+
+  /** Removes an occurrence marked by hand; detected occurrences can only be deselected. */
+  removeManualEntity(id: string): void {
+    const analysis = this.analysis();
+    const entity = analysis?.entities.find((item) => item.id === id);
+    if (!analysis || !entity?.manual || this.processing()) return;
+    this.analyzed.set({
+      ...analysis,
+      entities: analysis.entities.filter((entity) => entity.id !== id),
+    });
+    this.selection.set(this.selectedEntityIds().filter((selected) => selected !== id));
+    this.processed.set(null);
+    this.currentStage.set('analysis');
+    this.failed.set(false);
+  }
+
+  /**
+   * Code of a category named by the user, for this session only. A name already created is reused
+   * whatever its case, and the label of a built-in category in the current language gives that
+   * category instead. Returns '' for a blank or too long name.
+   */
+  addCustomCategory(label: string): string {
+    const name = normalizeCategoryLabel(label);
+    if (!name || name.length > MAX_CATEGORY_LABEL_LENGTH) return '';
+    const key = name.toLowerCase();
+    const text = this.language.text();
+    const builtIn = Object.entries(CATEGORY_DETAILS).find(
+      ([, details]) => text[details.labelKey].toLowerCase() === key,
+    );
+    if (builtIn) return builtIn[0];
+    const existing = this.categories().find((category) => category.toLowerCase() === key);
+    if (!existing) this.categories.update((categories) => [...categories, name]);
+    return customCategoryCode(existing ?? name);
+  }
+
   async analyze(): Promise<boolean> {
     const file = this.file();
     if (!file || this.processing()) return false;
@@ -138,6 +227,7 @@ export class DocumentService {
       const analysis = await this.processor.analyze(file, controller.signal);
       if (request !== this.request || controller.signal.aborted) return false;
       validateAnalysis(analysis);
+      this.manualCount = 0;
       this.analyzed.set(analysis);
       this.selection.set(analysis.entities.map((entity) => entity.id));
       return true;

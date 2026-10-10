@@ -1,0 +1,97 @@
+:host {
+  position: absolute;
+  z-index: 5;
+  width: min(300px, calc(100% - 16px));
+}
+/* The paper stays white in both themes, so the form on it is light too (data-bs-theme). */
+.manual-entity-form {
+  color-scheme: light;
+  padding: 12px;
+  border: 1px solid var(--line-bright);
+  border-radius: 8px;
+  color: var(--ink);
+  background: var(--surface);
+  box-shadow: 0 12px 32px rgb(15 23 42 / 16%);
+  font-size: 0.78rem;
+  line-height: 1.45;
+  animation: form-in 160ms ease-out both;
+}
+form {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.form-title {
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+.selected-text {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+  margin-bottom: 2px;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+.form-label {
+  margin: 4px 0 0;
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 550;
+}
+.form-select,
+.form-control {
+  font-size: 0.78rem;
+}
+/* Bootstrap's dark-mode chevron applies to any descendant of the dark root. */
+.manual-entity-form .form-select {
+  --bs-form-select-bg-img: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill='none' stroke='%23343a40' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='m2 5 6 6 6-6'/%3e%3c/svg%3e");
+}
+.form-select:focus,
+.form-control:focus,
+.form-check-input:focus {
+  border-color: var(--accent);
+  box-shadow: none;
+}
+.form-select:focus-visible,
+.form-control:focus-visible,
+.form-check-input:focus-visible {
+  outline: 2px solid var(--accent-text);
+  outline-offset: 2px;
+}
+.form-check {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  min-height: 0;
+  margin: 4px 0 0;
+  padding: 0;
+}
+.form-check .form-check-input {
+  float: none;
+  flex-shrink: 0;
+  margin: 2px 0 0;
+}
+.form-check-label {
+  font-size: 0.76rem;
+  cursor: pointer;
+}
+.form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 6px;
+}
+@keyframes form-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .manual-entity-form {
+    animation: none;
+  }
+}

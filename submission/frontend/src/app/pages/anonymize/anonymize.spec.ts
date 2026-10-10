@@ -1,9 +1,10 @@
-import { TestBed } from '@angular/core/testing';
+import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { Anonymize } from './anonymize';
 import { DocumentService } from '../../document.service';
 import { AnalyzedDocument, DOCUMENT_PROCESSOR, ProcessedDocument } from '../../document-processor';
 import { LanguageService } from '../../language.service';
+import { textRange } from '../../manual-selection';
 
 jasmine.DEFAULT_TIMEOUT_INTERVAL = 10000;
 
@@ -306,5 +307,295 @@ describe('PDF selection', () => {
     expect(fixture.nativeElement.querySelector('.empty-entities')).not.toBeNull();
     expect(fixture.nativeElement.querySelectorAll('.entity-option').length).toBe(0);
     expect(fixture.nativeElement.querySelectorAll('mark').length).toBe(0);
+  });
+
+  describe('marking selected text', () => {
+    async function review() {
+      const fixture = await setup();
+      const documents = TestBed.inject(DocumentService);
+      documents.select(new File(['%PDF-demo'], 'sample.pdf', { type: 'application/pdf' }));
+      await documents.analyze();
+      await fixture.whenStable();
+      return { fixture, documents, root: fixture.nativeElement as HTMLElement };
+    }
+
+    /** Selects the first occurrence of `value` in the preview, like a user dragging over it. */
+    function select(fixture: ComponentFixture<Anonymize>, value: string): HTMLElement {
+      const container = fixture.nativeElement.querySelector('.document-text') as HTMLElement;
+      const start = container.textContent!.indexOf(value);
+      const selection = document.getSelection()!;
+      selection.removeAllRanges();
+      selection.addRange(textRange(container, start, start + value.length)!);
+      return container;
+    }
+
+    async function selectText(fixture: ComponentFixture<Anonymize>, value: string) {
+      select(fixture, value).dispatchEvent(new PointerEvent('pointerup', { bubbles: true }));
+      await fixture.whenStable();
+    }
+
+    const dialog = (root: HTMLElement) =>
+      root.querySelector<HTMLElement>('app-manual-entity-form [role="dialog"]');
+    const preview = (root: HTMLElement) => root.querySelector('.preview-panel .paper-scroll');
+
+    afterEach(() => document.getSelection()?.removeAllRanges());
+
+    it('categorizes selected text, which is then listed, highlighted and masked', async () => {
+      const { fixture, documents, root } = await review();
+      const text = documents.analysis()!.originalText;
+      expect(root.querySelector('.preview-panel .panel-heading')!.textContent).toContain(
+        'Select text in the document to mark data that was not identified.',
+      );
+      await selectText(fixture, 'compan');
+      const form = dialog(root)!;
+      expect(form.closest('.paper')).not.toBeNull();
+      expect(form.closest('.document-text')).toBeNull();
+      expect(form.getAttribute('aria-labelledby')).toBe(form.querySelector('strong')!.id);
+      expect(form.querySelector('strong')!.textContent).toBe('Mark as personal data');
+      expect(form.querySelector('q')!.textContent).toBe('acompanhamento');
+      expect(root.querySelector('.document-text')!.textContent).toBe(text);
+      const pending = root.querySelector('.pending-highlight.is-open')!;
+      expect(pending.textContent).toBe('acompanhamento');
+      const paper = root.querySelector('.preview-panel .paper')!.getBoundingClientRect();
+      const box = form.getBoundingClientRect();
+      expect(box.top).toBeGreaterThanOrEqual(pending.getBoundingClientRect().bottom);
+      expect(box.top).toBeLessThan(pending.getBoundingClientRect().bottom + 12);
+      expect(box.left).toBeGreaterThanOrEqual(paper.left);
+      expect(box.right).toBeLessThanOrEqual(paper.right);
+      expect(document.getSelection()!.rangeCount).toBe(0);
+      const category = form.querySelector('select')!;
+      expect(document.activeElement).toBe(category);
+      expect(category.labels![0].textContent).toBe('Category');
+      expect(category.value).toBe('NAME');
+      expect(Array.from(category.options, (option) => option.textContent!.trim())).toEqual([
+        'Names',
+        'Identifiers',
+        'Contact details',
+        'Date of birth',
+        'Financial data',
+        'Health',
+        'Sensitive data',
+        'Private life',
+        'Age',
+        'Occupation',
+        'Healthcare professionals',
+        'Sex and gender',
+        'New category…',
+      ]);
+      expect(form.querySelector('input')).toBeNull();
+      category.value = 'ID';
+      category.dispatchEvent(new Event('change'));
+      await fixture.whenStable();
+      form.querySelector<HTMLButtonElement>('button[type="submit"]')!.click();
+      await fixture.whenStable();
+      expect(dialog(root)).toBeNull();
+      expect(root.querySelector('.pending-highlight')).toBeNull();
+      expect(document.activeElement).toBe(preview(root));
+      expect(root.querySelector('.manual-status')!.textContent).toBe('Added to Identifiers');
+      const start = text.indexOf('acompanhamento');
+      expect(documents.analysis()!.entities.find((entity) => entity.manual)).toEqual({
+        id: 'manual-1',
+        start,
+        end: start + 'acompanhamento'.length,
+        type: 'ID',
+        replacement: '*',
+        manual: true,
+      });
+      expect(documents.isSelected('manual-1')).toBeTrue();
+      const marks = root.querySelectorAll('.document-text .category-highlight.is-selected');
+      expect(Array.from(marks, (mark) => mark.textContent)).toContain('acompanhamento');
+      expect(root.querySelector('.document-text')!.textContent).toBe(text);
+      const item = root.querySelector('[data-entity-id="manual-1"]')!.closest('.entity-item')!;
+      expect(item.closest('fieldset')!.querySelector('legend')!.textContent).toContain(
+        'Identifiers',
+      );
+      expect(item.querySelector('strong')!.textContent).toBe('acompanhamento');
+      expect(item.querySelector('.manual-badge')!.textContent).toBe('Added by you');
+      expect(item.querySelector('label button')).toBeNull();
+      expect(item.querySelector('button')!.getAttribute('aria-label')).toBe(
+        'Remove acompanhamento',
+      );
+      expect(await documents.anonymize()).toBeTrue();
+      expect(documents.result()!.anonymizedText.split('\n')[0]).toBe('Ficha de *');
+    });
+
+    it('creates a new category from the form and offers it for the next selection', async () => {
+      const { fixture, documents, root } = await review();
+      await selectText(fixture, 'Medicação:');
+      let form = dialog(root)!;
+      expect(form.querySelector('q')!.textContent).toBe('Medicação');
+      const category = form.querySelector('select')!;
+      category.value = 'new';
+      category.dispatchEvent(new Event('change'));
+      await fixture.whenStable();
+      const name = form.querySelector<HTMLInputElement>('input[type="text"]')!;
+      expect(document.activeElement).toBe(name);
+      expect(name.labels![0].textContent).toBe('Category name');
+      expect(name.required).toBeTrue();
+      expect(name.maxLength).toBe(40);
+      const add = form.querySelector<HTMLButtonElement>('button[type="submit"]')!;
+      expect(add.disabled).toBeTrue();
+      name.value = '   ';
+      name.dispatchEvent(new Event('input'));
+      await fixture.whenStable();
+      expect(add.disabled).toBeTrue();
+      name.value = '  Campo   clínico ';
+      name.dispatchEvent(new Event('input'));
+      await fixture.whenStable();
+      expect(add.disabled).toBeFalse();
+      // What pressing Enter in the name field does.
+      form.querySelector('form')!.requestSubmit();
+      await fixture.whenStable();
+      expect(dialog(root)).toBeNull();
+      expect(documents.customCategories()).toEqual(['Campo clínico']);
+      expect(documents.analysis()!.entities.find((entity) => entity.manual)!.type).toBe(
+        'custom:Campo clínico',
+      );
+      expect(root.querySelector('.manual-status')!.textContent).toBe('Added to Campo clínico');
+      const headings = Array.from(
+        root.querySelectorAll('.category-heading'),
+        (heading) => heading.querySelector('span:not([class])')!.textContent,
+      );
+      expect(headings).toContain('Campo clínico');
+      await selectText(fixture, 'Diagnóstico');
+      form = dialog(root)!;
+      const next = form.querySelector('select')!;
+      expect(next.value).toBe('custom:Campo clínico');
+      expect(next.options[next.options.length - 2].textContent!.trim()).toBe('Campo clínico');
+    });
+
+    it('only explains why text overlapping identified data cannot be marked', async () => {
+      const { fixture, documents, root } = await review();
+      const before = documents.analysis();
+      await selectText(fixture, 'na Cor');
+      const form = dialog(root)!;
+      const message = form.querySelector('.overlap-message')!;
+      expect(message.textContent).toBe(
+        'This text overlaps data that is already identified. Select only the missing part.',
+      );
+      expect(form.getAttribute('aria-labelledby')).toBe(message.id);
+      expect(form.querySelector('select, q, input')).toBeNull();
+      expect(root.querySelector('.pending-highlight')).toBeNull();
+      const close = form.querySelector('button')!;
+      expect(close.textContent!.trim()).toBe('Close');
+      expect(document.activeElement).toBe(close);
+      close.click();
+      await fixture.whenStable();
+      expect(dialog(root)).toBeNull();
+      expect(document.activeElement).toBe(preview(root));
+      expect(documents.analysis()).toBe(before);
+    });
+
+    it('marks the other occurrences too, closes with Escape and follows the language', async () => {
+      const { fixture, documents, root } = await review();
+      TestBed.inject(LanguageService).setPreference('pt-PT');
+      await fixture.whenStable();
+      expect(root.querySelector('#manual-hint')!.textContent).toBe(
+        'Selecione texto no documento para marcar dados que não foram identificados.',
+      );
+      await selectText(fixture, ' de ');
+      let form = dialog(root)!;
+      expect(form.querySelector('label')!.textContent).toBe('Categoria');
+      const others = form.querySelector<HTMLInputElement>('input[type="checkbox"]')!;
+      expect(others.checked).toBeTrue();
+      expect(others.labels![0].textContent).toBe('Marcar também a outra ocorrência');
+      form
+        .querySelector('select')!
+        .dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+      await fixture.whenStable();
+      expect(dialog(root)).toBeNull();
+      expect(root.querySelector('.pending-highlight')).toBeNull();
+      expect(document.activeElement).toBe(preview(root));
+      expect(documents.analysis()!.entities.some((entity) => entity.manual)).toBeFalse();
+      await selectText(fixture, ' de ');
+      form = dialog(root)!;
+      form.querySelector<HTMLButtonElement>('button[type="submit"]')!.click();
+      await fixture.whenStable();
+      const text = documents.analysis()!.originalText;
+      const manual = documents.analysis()!.entities.filter((entity) => entity.manual);
+      expect(manual.map((entity) => [entity.start, text.slice(entity.start, entity.end)])).toEqual([
+        [text.indexOf(' de ') + 1, 'de'],
+        [text.lastIndexOf(' de ') + 1, 'de'],
+      ]);
+      expect(root.querySelector('.manual-status')!.textContent).toBe('Adicionado a Nomes');
+      const remove = root.querySelector<HTMLButtonElement>('.remove-manual')!;
+      expect(remove.getAttribute('aria-label')).toBe('Remover de');
+      remove.click();
+      await fixture.whenStable();
+      expect(documents.analysis()!.entities.filter((entity) => entity.manual).length).toBe(1);
+      expect(root.querySelectorAll('.manual-badge').length).toBe(1);
+      expect(document.activeElement).toBe(root.querySelector('.entity-scroll'));
+    });
+
+    it('reads keyboard selections once Shift is released, each in a new form', async () => {
+      const { fixture, root } = await review();
+      await selectText(fixture, 'Medicação');
+      const category = dialog(root)!.querySelector('select')!;
+      category.value = 'new';
+      category.dispatchEvent(new Event('change'));
+      await fixture.whenStable();
+      expect(dialog(root)!.querySelector('input[type="text"]')).not.toBeNull();
+      const region = preview(root)!;
+      select(fixture, 'Diagnóstico');
+      region.dispatchEvent(
+        new KeyboardEvent('keyup', { key: 'ArrowRight', shiftKey: true, bubbles: true }),
+      );
+      await fixture.whenStable();
+      expect(dialog(root)!.querySelector('q')!.textContent).toBe('Medicação');
+      region.dispatchEvent(new KeyboardEvent('keyup', { key: 'Shift', bubbles: true }));
+      await fixture.whenStable();
+      const form = dialog(root)!;
+      expect(form.querySelector('q')!.textContent).toBe('Diagnóstico');
+      expect(form.querySelector('select')!.value).toBe('NAME');
+      expect(form.querySelector('input[type="text"]')).toBeNull();
+      expect(document.activeElement).toBe(form.querySelector('select'));
+    });
+
+    it('closes on a press elsewhere or when processing starts, and waits for touch selections', async () => {
+      const { fixture, documents, root } = await review();
+      await selectText(fixture, 'Medicação');
+      root
+        .querySelector('.entity-scroll')!
+        .dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
+      await fixture.whenStable();
+      expect(dialog(root)).toBeNull();
+      expect(root.querySelector('.pending-highlight')).toBeNull();
+
+      // A press in the text removes the form but leaves the text nodes alone until the release.
+      await selectText(fixture, 'Medicação');
+      const container = root.querySelector<HTMLElement>('.document-text')!;
+      container.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
+      await fixture.whenStable();
+      expect(dialog(root)).toBeNull();
+      expect(root.querySelector('.pending-highlight:not(.is-open)')).not.toBeNull();
+      container.dispatchEvent(new PointerEvent('pointerup', { bubbles: true }));
+      await fixture.whenStable();
+      expect(root.querySelector('.pending-highlight')).toBeNull();
+
+      container.dispatchEvent(
+        new PointerEvent('pointerdown', { bubbles: true, pointerType: 'touch' }),
+      );
+      select(fixture, 'Diagnóstico');
+      container.dispatchEvent(
+        new PointerEvent('pointerup', { bubbles: true, pointerType: 'touch' }),
+      );
+      await fixture.whenStable();
+      expect(dialog(root)).toBeNull();
+      await new Promise((resolve) => setTimeout(resolve, 700));
+      await fixture.whenStable();
+      expect(dialog(root)!.querySelector('q')!.textContent).toBe('Diagnóstico');
+
+      // The interface keeps processing visible for a while, so it is rendered at least once.
+      const request = documents.anonymize(100);
+      await fixture.whenStable();
+      expect(documents.processing()).toBeTrue();
+      expect(dialog(root)).toBeNull();
+      expect(await request).toBeTrue();
+      documents.returnToReview();
+      await fixture.whenStable();
+      expect(root.querySelector('.analysis-grid')).not.toBeNull();
+      expect(dialog(root)).toBeNull();
+      expect(root.querySelector('.pending-highlight')).toBeNull();
+    });
   });
 });

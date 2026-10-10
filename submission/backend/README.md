@@ -59,7 +59,7 @@ Implements [`../frontend/API_CONTRACT.md`](../frontend/API_CONTRACT.md):
 | Endpoint | Does |
 |---|---|
 | `POST /api/documents/analyze` (multipart `file`) | PDF → text → Gemini detection → one entity per occurrence with UTF-16 offsets |
-| `POST /api/documents/{id}/anonymize` (`{"selectedEntityIds": [...]}`) | masks only the selected occurrences and returns the preview text plus the `.txt` download in base64 |
+| `POST /api/documents/{id}/anonymize` (`{"selectedEntityIds": [...], "manualEntities": [...]}`) | masks only the selected occurrences, plus the ranges the user marked by hand (optional `manualEntities`: UTF-16 `start`/`end` and a `type`, masked exactly where they are; an invalid range gives `400`), and returns the preview text plus the `.txt` download in base64 |
 
 Analyses live in memory for one hour. Errors come back as `{"message": "..."}`
 with the contract's status codes (400, 404, 413, 415, 422, 500). CORS allows

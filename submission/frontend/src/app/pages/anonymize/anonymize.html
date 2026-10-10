@@ -183,15 +183,25 @@
       <section class="panel preview-panel">
         <div class="panel-heading">
           <h2 id="preview-title">{{ language.text().documentPreview }}</h2>
+          <span id="manual-hint" class="sample-label">{{ language.text().manualHint }}</span>
         </div>
-        <div class="paper-scroll" role="region" aria-labelledby="preview-title" tabindex="0">
-          <div class="paper">
+        <div
+          #previewRegion
+          class="paper-scroll"
+          role="region"
+          aria-labelledby="preview-title"
+          aria-describedby="manual-hint"
+          tabindex="0"
+          (keyup)="keyUp($event)"
+        >
+          <div #paper class="paper">
             @if (analysis.source === 'example') {
               <span class="paper-brand">{{ language.text().sampleDocument }}</span>
             }
             <h3>{{ documents.file()?.name }}</h3>
-            <div class="document-text">
-              @for (segment of documents.originalSegments(); track $index) {
+            <!-- Offsets come from the text of this element: it must hold the document text only. -->
+            <div #documentText class="document-text" (pointerup)="pointerUp($event)">
+              @for (segment of segments(); track $index) {
                 @if (segment.sensitive) {
                   <mark
                     class="category-highlight"
@@ -199,16 +209,33 @@
                     [style.--category-color]="categoryDetails(segment.type!).color"
                     >{{ segment.text }}</mark
                   >
+                } @else if (segment.pending) {
+                  <mark class="pending-highlight" [class.is-open]="formOpen()">{{
+                    segment.text
+                  }}</mark>
                 } @else {
                   <span>{{ segment.text }}</span>
                 }
               }
             </div>
+            @for (selection of forms(); track selection.key) {
+              <app-manual-entity-form
+                [style.top.px]="formPosition().top"
+                [style.left.px]="formPosition().left"
+                [text]="selection.text"
+                [overlap]="selection.overlap"
+                [occurrences]="selection.occurrences.length"
+                [defaultCategory]="lastCategory()"
+                (added)="addManual($event)"
+                (closed)="closeForm(true)"
+              />
+            }
           </div>
         </div>
       </section>
       <app-entity-selection />
     </div>
+    <span class="visually-hidden manual-status" role="status">{{ announcement() }}</span>
     <div class="page-actions">
       <button type="button" class="btn btn-outline-secondary" (click)="backToDocument()">
         <svg

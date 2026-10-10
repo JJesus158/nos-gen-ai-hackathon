@@ -4,14 +4,16 @@ Input: the spans of the LLM output, {"spans": [{"line", "text",
 "category", "reason"}]}, as Span objects. Only that output is used, never
 the prompt, so the prompt can change freely. Each span is found in its
 line, every word it touches becomes a single "*", and lines, spacing and
-every other word stay byte for byte the same. How a "*" is finally shown
-(as is, blurred, a random value...) is up to the client, which can locate
-every "*" through mask_with_positions().
+every other word stay byte for byte the same. Ranges the user marked by
+hand are not searched for: they are masked exactly where they are, with
+the same rules. How a "*" is finally shown (as is, blurred, a random
+value...) is up to the client, which can locate every "*" through
+mask_with_positions().
 """
 
 import re
 from dataclasses import dataclass
-from typing import Dict, List, Sequence, Tuple
+from typing import Dict, List, Optional, Sequence, Tuple
 
 from anonymizer.spans import Category, Span
 
@@ -25,12 +27,19 @@ _WORD = re.compile(r"\S+")
 # Letters, digits and the accents of decomposed text ("e" + U+0301).
 _WORD_CHAR = r"[\ẁ-ͯ]"
 
+# A range to mask as it is: (line, start, end, category), the line counted
+# from 0, start and end in code points within that line, the "\n" left
+# out. category is None for a category the user made up.
+LineRange = Tuple[int, int, int, Optional[Category]]
+
 
 @dataclass(frozen=True)
 class MaskedWord:
     """One "*" and the word it replaced (line is 1-based).
 
     column: where the "*" sits in the masked line.
+    category: that of the first span touching the word, else of the
+        first range; None for a category the user made up.
     index: position of the word in the line, counting words separated by
         whitespace from 0; the same numbering PyMuPDF gives to the words
         of a PDF line, so it links a "*" to a box in the PDF.
@@ -41,7 +50,7 @@ class MaskedWord:
 
     line: int
     column: int
-    category: Category
+    category: Optional[Category]
     index: int
     start: int
     end: int
@@ -62,7 +71,7 @@ class Run:
     words: List[MaskedWord]
 
     @property
-    def categories(self) -> List[Category]:
+    def categories(self) -> List[Optional[Category]]:
         return [w.category for w in self.words]
 
 
@@ -76,23 +85,31 @@ class MaskResult:
 
 
 def mask(text: str, spans: Sequence[Span],
-         keep_punctuation: bool = True) -> str:
-    """Replace every word touched by a span with a single "*".
+         keep_punctuation: bool = True, *,
+         ranges: Sequence[LineRange] = ()) -> str:
+    """Replace every word touched by a span or a range with a single "*".
 
     "Ana Correia" becomes "* *". The number of lines and words must not
-    change, and words outside the spans must stay byte for byte the same.
-    With keep_punctuation=False, "Santos," becomes "*" instead of "*,".
-    A token made only of punctuation, such as a lone "«", is not a word
-    and stays as it is.
+    change, and words outside the spans and ranges must stay byte for
+    byte the same. With keep_punctuation=False, "Santos," becomes "*"
+    instead of "*,". A token made only of punctuation, such as a lone
+    "«", is not a word and stays as it is. A range is masked where it is,
+    never searched for, so the same value elsewhere is not masked by it.
     """
-    return mask_with_positions(text, spans, keep_punctuation).text
+    return mask_with_positions(
+        text, spans, keep_punctuation, ranges=ranges,
+    ).text
 
 
 def mask_with_positions(text: str, spans: Sequence[Span],
-                        keep_punctuation: bool = True) -> MaskResult:
-    """Same as mask(), plus the position and category of every "*"."""
+                        keep_punctuation: bool = True, *,
+                        ranges: Sequence[LineRange] = ()) -> MaskResult:
+    """Same as mask(), plus the position and category of every "*".
+
+    ValueError if a range is empty or does not fit in its line.
+    """
     lines = text.split("\n")
-    hits: Dict[int, List[Tuple[int, int, Category]]] = {}
+    hits: Dict[int, List[Tuple[int, int, Optional[Category]]]] = {}
     unmatched = []
     for span in spans:
         found = _find(lines, span)
@@ -100,6 +117,11 @@ def mask_with_positions(text: str, spans: Sequence[Span],
             unmatched.append(span)
         for index, start, end in found:
             hits.setdefault(index, []).append((start, end, span.category))
+    for index, start, end, category in ranges:
+        if not (0 <= index < len(lines)
+                and 0 <= start < end <= len(lines[index])):
+            raise ValueError(f"range {(index, start, end)} not in its line")
+        hits.setdefault(index, []).append((start, end, category))
 
     words: List[MaskedWord] = []
     for index in sorted(hits):
@@ -199,7 +221,7 @@ def _across_break(lines: List[str], first: int,
 
 
 def _mask_line(line: str, number: int,
-               hits: List[Tuple[int, int, Category]],
+               hits: List[Tuple[int, int, Optional[Category]]],
                keep_punctuation: bool, words: List[MaskedWord]) -> str:
     """Turn every word of the line that a hit touches into a "*"."""
     out = []

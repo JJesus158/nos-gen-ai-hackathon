@@ -11,6 +11,8 @@ export interface DocumentEntity {
   readonly type: string;
   readonly replacement: string;
   readonly reason?: string;
+  /** Frontend only: marked by the user on the review screen, never part of a processor analysis. */
+  readonly manual?: boolean;
 }
 
 export interface AnalyzedDocument {

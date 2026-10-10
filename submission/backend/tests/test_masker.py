@@ -1,5 +1,7 @@
 import unicodedata
 
+import pytest
+
 from anonymizer.masker import mask, mask_with_positions, runs
 from anonymizer.spans import Category, Span
 
@@ -327,3 +329,72 @@ def test_positions_match_the_masked_text():
     assert all(lines[w.line - 1][w.column] == "*" for w in result.words)
     assert len(result.words) == result.text.count("*")
     assert result.unmatched == []
+
+
+def test_a_range_is_masked_where_it_is_and_nowhere_else():
+    text = "Santos e Santos\nSantos"
+    second = text.index("Santos", 1)
+    ranges = [(0, second, second + 6, Category.NAME)]
+    assert mask(text, [], ranges=ranges) == "Santos e *\nSantos"
+
+
+def test_a_range_follows_the_word_rules_of_spans():
+    text = "Morada: Rua da Liberdade, 12."
+    ranges = [(0, text.index("Rua"), len(text) - 1, Category.CONTACT)]
+    assert mask(text, [], ranges=ranges) == "Morada: * * *, *."
+    contact = span(1, "Rua da Liberdade, 12", Category.CONTACT)
+    assert mask(text, [contact]) == mask(text, [], ranges=ranges)
+
+
+def test_a_range_inside_a_word_masks_the_whole_word():
+    text = "Filhos: 2 (João, 15 anos)"
+    inside = text.index("oã")
+    ranges = [(0, inside, inside + 2, None)]
+    assert mask(text, [], ranges=ranges) == "Filhos: 2 (*, 15 anos)"
+    assert mask(text, [], keep_punctuation=False, ranges=ranges) == (
+        "Filhos: 2 * 15 anos)"
+    )
+
+
+def test_a_range_may_have_a_category_the_user_made_up():
+    text = "Matrícula: AB-12-CD\nFim"
+    result = mask_with_positions(text, [], ranges=[(0, 11, 19, None)])
+    assert result.text == "Matrícula: *\nFim"
+    assert [(w.line, w.column, w.category, w.word) for w in result.words] == [
+        (1, 11, None, "AB-12-CD"),
+    ]
+    assert result.unmatched == []
+
+
+def test_ranges_and_spans_on_the_same_line_are_merged():
+    text = "Nome: Ana Correia, NIF 123456789"
+    surname, nif = text.index("Correia"), text.index("123")
+    ranges = [(0, nif, nif + 9, Category.ID), (0, surname, surname + 7, None)]
+    result = mask_with_positions(
+        text, [span(1, "Ana Correia")], ranges=ranges,
+    )
+    assert result.text == "Nome: * *, NIF *"
+    # A word under a span and a range is one "*" with the span's category.
+    assert [(w.index, w.category) for w in result.words] == [
+        (1, Category.NAME), (2, Category.NAME), (4, Category.ID),
+    ]
+
+
+def test_ranges_may_overlap_and_come_in_any_order():
+    text = "Nome: Ana Maria\nNIF: 123"
+    ranges = [(1, 5, 8, Category.ID), (0, 6, 15, None), (0, 10, 12, None)]
+    assert mask(text, [], ranges=ranges) == "Nome: * *\nNIF: *"
+
+
+def test_a_range_without_a_word_masks_nothing():
+    text = "Sexo: « Feminino »"
+    # Only a space, then only the lone "«".
+    assert mask(text, [], ranges=[(0, 5, 6, None), (0, 6, 7, None)]) == text
+
+
+def test_a_range_outside_its_line_is_an_error():
+    for line, start, end in [
+        (1, 0, 1), (-1, 0, 1), (0, -1, 2), (0, 3, 3), (0, 4, 2), (0, 5, 10),
+    ]:
+        with pytest.raises(ValueError):
+            mask("Nome: Ana", [], ranges=[(line, start, end, None)])

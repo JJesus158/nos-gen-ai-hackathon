@@ -70,7 +70,14 @@ legend {
   margin-left: auto;
   font-weight: 400;
 }
+.entity-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 4px;
+}
 .entity-option {
+  flex: 1;
+  min-width: 0;
   align-items: flex-start;
   padding: 6px 0 0 23px;
   font-size: 0.76rem;
@@ -91,6 +98,27 @@ legend {
   color: var(--muted);
   font-size: 0.68rem;
   margin-top: 3px;
+}
+.entity-option .manual-badge {
+  width: fit-content;
+  padding: 0 6px;
+  border-radius: 999px;
+  color: var(--accent-text);
+  background: var(--accent-soft);
+  font-weight: 500;
+}
+.remove-manual {
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+  margin-top: 3px;
+  padding: 0;
+  border: 0;
+  color: var(--muted);
+}
+.remove-manual:hover {
+  color: var(--ink);
+  background: var(--accent-soft);
 }
 .empty-entities {
   margin: 0;

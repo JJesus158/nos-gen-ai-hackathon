@@ -5,7 +5,7 @@
       {{ documents.selectedCount() }} / {{ allIds().length }} {{ language.text().selectedItems }}
     </span>
   </div>
-  <div class="entity-scroll" role="region" aria-labelledby="entities-title" tabindex="0">
+  <div #region class="entity-scroll" role="region" aria-labelledby="entities-title" tabindex="0">
     @if (allIds().length) {
       <label class="select-all">
         <input
@@ -41,29 +41,54 @@
                   <path [attr.d]="group.details.icon.icon[4]" />
                 </svg>
               </span>
-              <span>{{ language.text()[group.details.labelKey] }}</span>
+              <span>{{ categoryLabel(group.type, language.text()) }}</span>
               <span class="category-count muted" aria-hidden="true">{{ group.items.length }}</span>
             </label>
           </legend>
           @for (entity of group.items; track entity.id) {
-            <label class="entity-option">
-              <input
-                #occurrence
-                type="checkbox"
-                [attr.data-entity-id]="entity.id"
-                [checked]="documents.isSelected(entity.id)"
-                [disabled]="documents.processing()"
-                (change)="documents.setEntities([entity.id], occurrence.checked)"
-              />
-              <span>
-                <strong>{{
-                  documents.analysis()!.originalText.slice(entity.start, entity.end)
-                }}</strong>
-                @if (entity.reason) {
-                  <small>{{ entity.reason }}</small>
-                }
-              </span>
-            </label>
+            @let value = documents.analysis()!.originalText.slice(entity.start, entity.end);
+            <div class="entity-item">
+              <label class="entity-option">
+                <input
+                  #occurrence
+                  type="checkbox"
+                  [attr.data-entity-id]="entity.id"
+                  [checked]="documents.isSelected(entity.id)"
+                  [disabled]="documents.processing()"
+                  (change)="documents.setEntities([entity.id], occurrence.checked)"
+                />
+                <span>
+                  <strong>{{ value }}</strong>
+                  @if (entity.reason) {
+                    <small>{{ entity.reason }}</small>
+                  }
+                  @if (entity.manual) {
+                    <small class="manual-badge">{{ language.text().manualBadge }}</small>
+                  }
+                </span>
+              </label>
+              @if (entity.manual) {
+                <button
+                  type="button"
+                  class="btn remove-manual"
+                  [attr.aria-label]="language.text().removeManual + ' ' + value"
+                  [attr.title]="language.text().removeManual"
+                  [disabled]="documents.processing()"
+                  (click)="remove(entity.id)"
+                >
+                  <svg
+                    width="12"
+                    height="12"
+                    [attr.viewBox]="'0 0 ' + removeIcon.icon[0] + ' ' + removeIcon.icon[1]"
+                    fill="currentColor"
+                    aria-hidden="true"
+                    focusable="false"
+                  >
+                    <path [attr.d]="removeIcon.icon[4]" />
+                  </svg>
+                </button>
+              }
+            </div>
           }
         </fieldset>
       }

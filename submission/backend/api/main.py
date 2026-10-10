@@ -10,12 +10,12 @@ pool, so the Gemini call never blocks the event loop.
 import base64
 import logging
 from pathlib import Path
-from typing import List, Optional
+from typing import Annotated, List, Optional
 
 from fastapi import FastAPI, File, HTTPException, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, StrictInt, StringConstraints
 
 from anonymizer import detector, entities, extract
 from api.store import AnalysisStore
@@ -47,8 +47,19 @@ class AnalysisOut(BaseModel):
     entities: List[EntityOut]
 
 
+class ManualEntityIn(BaseModel):
+    """An occurrence the user marked by hand, as UTF-16 offsets."""
+
+    start: StrictInt
+    end: StrictInt
+    type: Annotated[str, StringConstraints(
+        strip_whitespace=True, min_length=1, max_length=100,
+    )]
+
+
 class AnonymizeIn(BaseModel):
     selectedEntityIds: List[str]
+    manualEntities: List[ManualEntityIn] = []
 
 
 class DownloadOut(BaseModel):
@@ -115,8 +126,14 @@ def anonymize(analysis_id: str, body: AnonymizeIn) -> AnonymizeOut:
     known = {e.id for e in analysis.entities}
     if len(set(ids)) != len(ids) or not set(ids) <= known:
         raise HTTPException(400, "Unknown or duplicate entity ids")
+    manual = [(m.start, m.end, m.type) for m in body.manualEntities]
 
-    masked = entities.mask_selected(analysis.text, analysis.entities, ids)
+    try:
+        masked = entities.mask_selected(
+            analysis.text, analysis.entities, ids, manual,
+        )
+    except ValueError:
+        raise HTTPException(400, "Invalid manual entity range")
     name = Path(analysis.filename).stem or "document"
     return AnonymizeOut(
         anonymizedText=masked,

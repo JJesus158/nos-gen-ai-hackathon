@@ -173,6 +173,19 @@
 .analysis-grid {
   grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr);
 }
+/* The form for a selection is positioned inside the paper. */
+.paper {
+  position: relative;
+}
+/* Outline and background only, so the text keeps its layout. */
+.pending-highlight {
+  background: transparent;
+}
+.pending-highlight.is-open {
+  background: var(--accent-soft);
+  outline: 1px dashed var(--accent-text);
+  outline-offset: 1px;
+}
 .anonymization-modal-backdrop {
   position: fixed;
   z-index: 1050;
@@ -217,6 +230,13 @@
 @media (max-width: 575px) {
   .analysis-grid {
     grid-template-columns: minmax(0, 1fr);
+  }
+  /* The preview does not scroll here, so the selection form may extend past its panel. */
+  .analysis-grid .preview-panel {
+    overflow: visible;
+  }
+  .preview-panel .panel-heading {
+    border-radius: 7px 7px 0 0;
   }
   .upload-panel {
     padding: 12px;

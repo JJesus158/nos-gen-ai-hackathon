@@ -7,7 +7,7 @@ import {
 } from './document-processor';
 import { DocumentService } from './document.service';
 import { exampleDocumentProcessor } from './example-document';
-
+import { LanguageService } from './language.service';
 
 function deferred<T>() {
   let resolve!: (value: T) => void;
@@ -294,6 +294,187 @@ describe('Document selection workflow', () => {
     }
   });
 
+  it('adds manual occurrences selected and in document order, and removes only those', async () => {
+    await analyzeSelected();
+    documents.setEntities(['name-2'], false);
+    processor.anonymize.and.rejectWith(new Error('Unavailable'));
+    expect(await documents.anonymize()).toBeFalse();
+    expect(documents.error()).toBeTrue();
+    const ids = documents.addManualEntities(
+      [
+        { start: 11, end: 14 },
+        { start: 4, end: 5 },
+      ],
+      'custom:Sigla',
+    );
+    expect(ids).toEqual(['manual-1', 'manual-2']);
+    expect(documents.error()).toBeFalse();
+    expect(documents.stage()).toBe('analysis');
+    const entities = documents.analysis()!.entities;
+    expect(entities.map((entity) => entity.id)).toEqual([
+      'name-1',
+      'manual-2',
+      'name-2',
+      'manual-1',
+      'id-1',
+    ]);
+    expect(entities[3]).toEqual({
+      id: 'manual-1',
+      start: 11,
+      end: 14,
+      type: 'custom:Sigla',
+      replacement: '*',
+      manual: true,
+    });
+    expect(documents.selectedEntityIds()).toEqual(['name-1', 'manual-2', 'manual-1', 'id-1']);
+    expect(documents.originalSegments().map((segment) => segment.text)).toEqual([
+      'Ana',
+      ' ',
+      'e',
+      ' ',
+      'Ana',
+      ', ',
+      'NIF',
+      ' ',
+      '123',
+      '.',
+    ]);
+    documents.removeManualEntity('name-1');
+    expect(documents.analysis()!.entities).toBe(entities);
+    documents.removeManualEntity('manual-2');
+    expect(documents.analysis()!.entities.map((entity) => entity.id)).toEqual([
+      'name-1',
+      'name-2',
+      'manual-1',
+      'id-1',
+    ]);
+    expect(documents.selectedEntityIds()).toEqual(['name-1', 'manual-1', 'id-1']);
+    processor.anonymize.and.callFake(async (document, selected) => result(document, selected));
+    expect(await documents.anonymize()).toBeTrue();
+    expect(processor.anonymize.calls.mostRecent().args[1]).toEqual(['name-1', 'manual-1', 'id-1']);
+    expect(documents.result()!.anonymizedText).toBe('[NOME] e Ana, * [ID].');
+    documents.removeManualEntity('manual-1');
+    expect(documents.result()).toBeNull();
+    expect(documents.stage()).toBe('analysis');
+    expect(documents.selectedEntityIds()).toEqual(['name-1', 'id-1']);
+  });
+
+  it('rejects a whole batch of manual occurrences when any of them is invalid', async () => {
+    expect(documents.addManualEntities([{ start: 11, end: 14 }], 'NAME')).toEqual([]);
+    await analyzeSelected();
+    const before = documents.analysis();
+    const selection = documents.selectedEntityIds();
+    const invalid: [{ start: number; end: number }[], string][] = [
+      [[{ start: 11, end: 14 }], '  '],
+      [[], 'NAME'],
+      [
+        [
+          { start: 11, end: 14 },
+          { start: -1, end: 0 },
+        ],
+        'NAME',
+      ],
+      [
+        [
+          { start: 11, end: 14 },
+          { start: 18, end: 20 },
+        ],
+        'NAME',
+      ],
+      [[{ start: 11, end: 11 }], 'NAME'],
+      [[{ start: 13, end: 11 }], 'NAME'],
+      [[{ start: 11.5, end: 14 }], 'NAME'],
+      [
+        [
+          { start: 11, end: 14 },
+          { start: 2, end: 5 },
+        ],
+        'NAME',
+      ],
+      [
+        [
+          { start: 10, end: 14 },
+          { start: 12, end: 13 },
+        ],
+        'NAME',
+      ],
+    ];
+    for (const [ranges, type] of invalid) {
+      expect(documents.addManualEntities(ranges, type)).toEqual([]);
+      expect(documents.analysis()).toBe(before);
+      expect(documents.selectedEntityIds()).toBe(selection);
+    }
+    const pending = deferred<ProcessedDocument>();
+    processor.anonymize.and.returnValue(pending.promise);
+    const request = documents.anonymize();
+    expect(documents.addManualEntities([{ start: 11, end: 14 }], 'NAME')).toEqual([]);
+    expect(documents.analysis()).toBe(before);
+    pending.resolve(result());
+    expect(await request).toBeTrue();
+  });
+
+  it('rejects manual ranges that split a surrogate pair and never reuses an ID', async () => {
+    processor.analyze.and.resolveTo({
+      id: 'emoji',
+      originalText: 'Olá 😀 Ana',
+      entities: [{ id: 'manual-1', start: 0, end: 3, type: 'NAME', replacement: '*' }],
+      source: 'api',
+    });
+    await analyzeSelected();
+    expect(documents.addManualEntities([{ start: 4, end: 5 }], 'NAME')).toEqual([]);
+    expect(documents.addManualEntities([{ start: 5, end: 10 }], 'NAME')).toEqual([]);
+    expect(documents.addManualEntities([{ start: 4, end: 6 }], 'NAME')).toEqual(['manual-2']);
+    expect(documents.addManualEntities([{ start: 7, end: 10 }], 'NAME')).toEqual(['manual-3']);
+    documents.removeManualEntity('manual-1');
+    expect(documents.analysis()!.entities.length).toBe(3);
+  });
+
+  it('forgets manual occurrences with their analysis but keeps them when returning to review', async () => {
+    await analyzeSelected();
+    expect(documents.addManualEntities([{ start: 11, end: 14 }], 'ID')).toEqual(['manual-1']);
+    expect(await documents.anonymize()).toBeTrue();
+    documents.returnToReview();
+    expect(documents.analysis()!.entities.map((entity) => entity.id)).toContain('manual-1');
+    expect(documents.isSelected('manual-1')).toBeTrue();
+    expect(await documents.analyze()).toBeTrue();
+    expect(documents.analysis()!.entities.some((entity) => entity.manual)).toBeFalse();
+    expect(documents.addManualEntities([{ start: 11, end: 14 }], 'ID')).toEqual(['manual-1']);
+    documents.returnToDocument();
+    expect(documents.analysis()).toBeNull();
+    expect(await documents.analyze()).toBeTrue();
+    expect(documents.analysis()!.entities.length).toBe(3);
+    documents.addManualEntities([{ start: 11, end: 14 }], 'ID');
+    documents.clear();
+    expect(documents.analysis()).toBeNull();
+    expect(documents.selectedCount()).toBe(0);
+  });
+
+  it('reuses custom categories whatever their case and prefers built-in names', () => {
+    const saved = localStorage.getItem('language');
+    const language = TestBed.inject(LanguageService);
+    try {
+      language.setPreference('en');
+      expect(documents.addCustomCategory('  Matrícula   escolar ')).toBe(
+        'custom:Matrícula escolar',
+      );
+      expect(documents.addCustomCategory('MATRÍCULA ESCOLAR')).toBe('custom:Matrícula escolar');
+      expect(documents.addCustomCategory('names')).toBe('NAME');
+      expect(documents.addCustomCategory('Saúde')).toBe('custom:Saúde');
+      language.setPreference('pt-PT');
+      expect(documents.addCustomCategory('saúde')).toBe('HEALTH');
+      expect(documents.addCustomCategory('   ')).toBe('');
+      expect(documents.addCustomCategory('x'.repeat(41))).toBe('');
+      expect(documents.addCustomCategory('x'.repeat(40))).toBe(`custom:${'x'.repeat(40)}`);
+      expect(documents.customCategories()).toEqual(['Matrícula escolar', 'Saúde', 'x'.repeat(40)]);
+      documents.clear();
+      expect(documents.customCategories().length).toBe(3);
+    } finally {
+      if (saved === null) localStorage.removeItem('language');
+      else localStorage.setItem('language', saved);
+      document.documentElement.lang = 'en';
+    }
+  });
+
   it('rejects invalid artifacts and results that do not match the selected occurrences', async () => {
     await analyzeSelected();
     documents.setEntities(['name-1'], false);
@@ -335,6 +516,34 @@ describe('Local selected anonymization', () => {
     expect(completed.anonymizedText).toContain('Diagnóstico: [SAÚDE]');
     expect(await completed.download.blob.text()).toBe(completed.anonymizedText);
     expect(completed.entities.map((entity) => entity.id)).toEqual(selected);
+  });
+
+  it('masks manual occurrences word by word, keeping punctuation and line breaks', async () => {
+    TestBed.configureTestingModule({
+      providers: [{ provide: DOCUMENT_PROCESSOR, useValue: exampleDocumentProcessor }],
+    });
+    const documents = TestBed.inject(DocumentService);
+    documents.select(new File(['untouched'], 'local.pdf'));
+    await documents.analyze();
+    const text = documents.analysis()!.originalText;
+    const heading = 'Ficha de acompanhamento\nNome';
+    const start = text.indexOf(heading);
+    const label = text.indexOf('Medicação');
+    expect(
+      documents.addManualEntities(
+        [
+          { start, end: start + heading.length },
+          { start: label, end: label + 'Medicação'.length },
+        ],
+        'custom:Cabeçalho',
+      ),
+    ).toEqual(['manual-1', 'manual-2']);
+    expect(await documents.anonymize()).toBeTrue();
+    const anonymized = documents.result()!.anonymizedText;
+    expect(anonymized.startsWith('* * *\n*: [NOME]\n')).toBeTrue();
+    expect(anonymized).toContain('\n*: [MEDICAÇÃO]\n');
+    expect(documents.result()!.entities.filter((entity) => entity.manual).length).toBe(2);
+    expect(await documents.result()!.download.blob.text()).toBe(anonymized);
   });
 
   it('supports an empty selection without silently masking anything', async () => {

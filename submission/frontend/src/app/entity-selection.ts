@@ -1,5 +1,13 @@
-import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
-import { categoryDetails } from './document-categories';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  computed,
+  ElementRef,
+  inject,
+  viewChild,
+} from '@angular/core';
+import { faXmark } from '@fortawesome/free-solid-svg-icons';
+import { categoryDetails, categoryLabel } from './document-categories';
 import { DocumentService } from './document.service';
 import { LanguageService } from './language.service';
 
@@ -12,6 +20,8 @@ import { LanguageService } from './language.service';
 export class EntitySelection {
   protected readonly documents = inject(DocumentService);
   protected readonly language = inject(LanguageService);
+  protected readonly categoryLabel = categoryLabel;
+  protected readonly removeIcon = faXmark;
   protected readonly groups = computed(() => {
     const entities = this.documents.analysis()?.entities ?? [];
     return [...new Set(entities.map((entity) => entity.type))].map((type) => {
@@ -22,4 +32,11 @@ export class EntitySelection {
   protected readonly allIds = computed(
     () => this.documents.analysis()?.entities.map((entity) => entity.id) ?? [],
   );
+  private readonly region = viewChild.required<ElementRef<HTMLElement>>('region');
+
+  protected remove(id: string): void {
+    // The button leaves with its item: keep keyboard focus in the list.
+    this.region().nativeElement.focus({ preventScroll: true });
+    this.documents.removeManualEntity(id);
+  }
 }

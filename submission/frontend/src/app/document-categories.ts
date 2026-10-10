@@ -7,6 +7,7 @@ import {
   faCreditCard,
   faFingerprint,
   faHeartPulse,
+  faHighlighter,
   faHouseUser,
   faIdCard,
   faTag,
@@ -81,8 +82,45 @@ const other: CategoryDetails = {
   color: 'var(--muted)',
 };
 
+const custom: CategoryDetails = {
+  labelKey: 'categoryOther',
+  icon: faHighlighter,
+  color: 'var(--accent-text)',
+};
+
+/** Categories the user creates on the review screen are encoded as `custom:<label>`. */
+export const CUSTOM_CATEGORY_PREFIX = 'custom:';
+export const MAX_CATEGORY_LABEL_LENGTH = 40;
+
+/** A user-defined category name, trimmed and with its inner whitespace collapsed. */
+export function normalizeCategoryLabel(label: string): string {
+  return label.trim().replace(/\s+/g, ' ');
+}
+
+export function customCategoryCode(label: string): string {
+  return CUSTOM_CATEGORY_PREFIX + normalizeCategoryLabel(label);
+}
+
+export function isCustomCategory(type: string): boolean {
+  return (
+    type.startsWith(CUSTOM_CATEGORY_PREFIX) && !!type.slice(CUSTOM_CATEGORY_PREFIX.length).trim()
+  );
+}
+
+export function customCategoryLabel(type: string): string {
+  return isCustomCategory(type) ? type.slice(CUSTOM_CATEGORY_PREFIX.length) : '';
+}
+
 export function categoryDetails(type: string): CategoryDetails {
-  return Object.prototype.hasOwnProperty.call(CATEGORY_DETAILS, type)
-    ? CATEGORY_DETAILS[type as keyof typeof CATEGORY_DETAILS]
-    : other;
+  if (Object.prototype.hasOwnProperty.call(CATEGORY_DETAILS, type))
+    return CATEGORY_DETAILS[type as keyof typeof CATEGORY_DETAILS];
+  return isCustomCategory(type) ? custom : other;
+}
+
+/** Translated category label; a user-defined category keeps the name the user gave it. */
+export function categoryLabel(
+  type: string,
+  text: Readonly<Record<CategoryLabelKey, string>>,
+): string {
+  return isCustomCategory(type) ? customCategoryLabel(type) : text[categoryDetails(type).labelKey];
 }

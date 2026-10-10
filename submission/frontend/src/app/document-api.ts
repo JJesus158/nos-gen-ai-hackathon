@@ -2,6 +2,17 @@ import type { AnalyzedDocument, DocumentProcessor, ProcessedDocument } from './d
 
 export type DocumentAnalysisApiResponse = Omit<AnalyzedDocument, 'source'>;
 
+export interface DocumentAnonymizationApiRequest {
+  /** Selected occurrences of the analysis. */
+  readonly selectedEntityIds: readonly string[];
+  /** Selected occurrences marked by hand, which the analysis does not know; only when present. */
+  readonly manualEntities?: readonly {
+    readonly start: number;
+    readonly end: number;
+    readonly type: string;
+  }[];
+}
+
 export interface DocumentAnonymizationApiResponse {
   readonly anonymizedText: string;
   readonly download: {
@@ -35,9 +46,22 @@ export function createApiProcessor(endpoint: string): DocumentProcessor {
       return { ...value, source: 'api' };
     },
     async anonymize(analysis, selectedEntityIds, signal): Promise<ProcessedDocument> {
+      const selected = new Set(selectedEntityIds);
+      const manual = new Set(
+        analysis.entities.filter((entity) => entity.manual).map((entity) => entity.id),
+      );
+      const manualEntities = analysis.entities
+        .filter((entity) => entity.manual && selected.has(entity.id))
+        .sort((a, b) => a.start - b.start)
+        .map(({ start, end, type }) => ({ start, end, type }));
+      const body: DocumentAnonymizationApiRequest = {
+        selectedEntityIds: selectedEntityIds.filter((id) => !manual.has(id)),
+        // The key is left out when nothing was marked by hand, so those requests stay unchanged.
+        ...(manualEntities.length ? { manualEntities } : {}),
+      };
       const value = (await request(`${base}/${encodeURIComponent(analysis.id)}/anonymize`, {
         headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
-        body: JSON.stringify({ selectedEntityIds }),
+        body: JSON.stringify(body),
         signal,
       })) as DocumentAnonymizationApiResponse;
       if (
@@ -54,7 +78,6 @@ export function createApiProcessor(endpoint: string): DocumentProcessor {
       }
       const binary = atob(value.download.contentBase64);
       const bytes = Uint8Array.from(binary, (character) => character.charCodeAt(0));
-      const selected = new Set(selectedEntityIds);
       return {
         originalText: analysis.originalText,
         anonymizedText: value.anonymizedText,

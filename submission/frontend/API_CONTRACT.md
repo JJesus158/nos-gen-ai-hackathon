@@ -88,6 +88,28 @@ URL-encode the analysis ID. Body: `application/json`:
 
 The list is explicit and exhaustive: only `entity-1` is protected in this example. An empty list means **protect nothing**, not protect everything. Omitted, duplicate, unknown or stale IDs must produce `400` or `422`; IDs must belong to the identified analysis. The backend must generate both preview text and downloadable document using this exact selection. It must preserve unselected occurrences and must not return a previously generated file with all occurrences masked.
 
+The body may also contain `manualEntities`: the occurrences the user marked by hand in the document preview and kept selected. They are not part of the analysis, so they never appear in `selectedEntityIds`:
+
+```json
+{
+  "selectedEntityIds": ["entity-1", "entity-3"],
+  "manualEntities": [
+    { "start": 120, "end": 131, "type": "NAME" },
+    { "start": 200, "end": 208, "type": "custom:Matrícula" }
+  ]
+}
+```
+
+| Field   | Meaning                                                                                                                                                 |
+| ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `start` | Inclusive, zero-based UTF-16 offset into `originalText`, the same convention as analysis entities (JavaScript string indices).                          |
+| `end`   | Exclusive UTF-16 offset, greater than `start` and at most the UTF-16 length of `originalText`. A range may span line breaks.                            |
+| `type`  | Nonempty string of at most 100 characters: a category code from the taxonomy, or a user-defined category, which the frontend sends as `custom:<label>`. |
+
+`manualEntities` is optional. When it is absent or empty, the request behaves exactly as without it; the frontend sends the key only when it is non-empty. `selectedEntityIds` stays required: with an empty list, only the manual occurrences are protected. The backend masks every word that a range touches with exactly the same word rules as detected occurrences: each touched whitespace-separated word becomes one `*`, sentence punctuation at the word edges is kept, and spaces and line breaks are unchanged, so `Rua da Liberdade, 12` becomes `* * *, *`. Masking applies at that exact position only; the same value elsewhere in the document is not masked by it. Ranges may overlap each other or detected occurrences, and masking is their union; the frontend never sends overlapping ranges, but they are not an error. The backend does not interpret `type` beyond validating it and stores nothing about these occurrences. The response shape is unchanged.
+
+A negative `start`, an `end` not greater than `start` or beyond the UTF-16 length of `originalText`, or a `start` or `end` in the middle of a surrogate pair returns `400` with `{ "message": "Invalid manual entity range" }`. Schema errors, such as a missing or non-integer offset or an empty or too long `type`, may return `422`.
+
 HTTP `200`, `Content-Type: application/json`:
 
 ```json

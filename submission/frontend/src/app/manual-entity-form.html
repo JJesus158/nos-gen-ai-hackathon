@@ -1,0 +1,101 @@
+<div
+  class="manual-entity-form"
+  role="dialog"
+  tabindex="-1"
+  data-bs-theme="light"
+  [attr.aria-labelledby]="overlap() ? id + '-message' : id + '-title'"
+  [attr.aria-describedby]="overlap() ? null : id + '-text'"
+  (keydown.escape)="closed.emit()"
+>
+  @if (overlap()) {
+    <div class="overlap-message" [id]="id + '-message'">{{ overlapMessage() }}</div>
+    <div class="form-actions">
+      <button
+        #closeButton
+        type="button"
+        class="btn btn-outline-secondary btn-sm"
+        (click)="closed.emit()"
+      >
+        {{ language.text().close }}
+      </button>
+      @if (deselected()) {
+        <button
+          #actionButton
+          type="button"
+          class="btn btn-primary btn-sm"
+          (click)="selectExisting.emit()"
+        >
+          {{ language.text().selectExisting }}
+        </button>
+      }
+    </div>
+  } @else {
+    <form (submit)="submit($event)">
+      <strong class="form-title" [id]="id + '-title'">{{
+        language.text().markAsPersonalData
+      }}</strong>
+      <q class="selected-text" [id]="id + '-text'">{{ text() }}</q>
+      <label class="form-label" [for]="id + '-category'">{{ language.text().category }}</label>
+      <select
+        #categorySelect
+        class="form-select form-select-sm"
+        [id]="id + '-category'"
+        (pointerdown)="choosingWith('pointer')"
+        (keydown)="choosingWith('keyboard')"
+        (change)="choose(categorySelect.value)"
+      >
+        @for (option of builtInCategories; track option.code) {
+          <option [value]="option.code" [selected]="option.code === category()">
+            {{ language.text()[option.labelKey] }}
+          </option>
+        }
+        @for (label of documents.customCategories(); track label) {
+          <option
+            [value]="customCategoryCode(label)"
+            [selected]="customCategoryCode(label) === category()"
+          >
+            {{ label }}
+          </option>
+        }
+        <option [value]="newCategory" [selected]="category() === newCategory">
+          {{ language.text().newCategory }}
+        </option>
+      </select>
+      @if (category() === newCategory) {
+        <label class="form-label" [for]="id + '-name'">{{ language.text().newCategoryName }}</label>
+        <input
+          #nameInput
+          type="text"
+          class="form-control form-control-sm"
+          autocomplete="off"
+          required
+          [id]="id + '-name'"
+          [maxLength]="maxLength"
+          [value]="name()"
+          (input)="name.set(nameInput.value)"
+        />
+      }
+      @if (occurrences() > 0) {
+        <div class="form-check">
+          <input
+            #othersInput
+            type="checkbox"
+            class="form-check-input"
+            [id]="id + '-others'"
+            [checked]="others()"
+            (change)="others.set(othersInput.checked)"
+          />
+          <label class="form-check-label" [for]="id + '-others'">{{ othersLabel() }}</label>
+        </div>
+      }
+      <div class="form-actions">
+        <button type="button" class="btn btn-outline-secondary btn-sm" (click)="closed.emit()">
+          {{ language.text().cancel }}
+        </button>
+        <button type="submit" class="btn btn-primary btn-sm" [disabled]="!valid()">
+          {{ language.text().add }}
+        </button>
+      </div>
+    </form>
+  }
+</div>

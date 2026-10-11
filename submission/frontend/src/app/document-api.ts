@@ -2,6 +2,26 @@ import type { AnalyzedDocument, DocumentProcessor, ProcessedDocument } from './d
 
 export type DocumentAnalysisApiResponse = Omit<AnalyzedDocument, 'source'>;
 
+export interface DocumentAnonymizationApiRequest {
+  /** Selected occurrences of the analysis. */
+  readonly selectedEntityIds: readonly string[];
+  /** Selected occurrences marked by hand, which the analysis does not know; only when present. */
+  readonly manualEntities?: readonly {
+    readonly start: number;
+    readonly end: number;
+    readonly type: string;
+  }[];
+}
+
+export interface DocumentSummaryApiRequest extends DocumentAnonymizationApiRequest {
+  /** 'en' or 'pt-PT'; the backend writes the summary in that language. */
+  readonly language: string;
+}
+
+export interface DocumentSummaryApiResponse {
+  readonly summary: string;
+}
+
 export interface DocumentAnonymizationApiResponse {
   readonly anonymizedText: string;
   readonly download: {
@@ -9,9 +29,6 @@ export interface DocumentAnonymizationApiResponse {
     readonly mediaType: string;
     readonly contentBase64: string;
   };
-}
-export interface DocumentSummaryApiResponse {
-  readonly summary: string;
 }
 
 /** Backend analysis and file generation are separate so the user can review every occurrence. */
@@ -38,9 +55,10 @@ export function createApiProcessor(endpoint: string): DocumentProcessor {
       return { ...value, source: 'api' };
     },
     async anonymize(analysis, selectedEntityIds, signal): Promise<ProcessedDocument> {
+      const selected = new Set(selectedEntityIds);
       const value = (await request(`${base}/${encodeURIComponent(analysis.id)}/anonymize`, {
         headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
-        body: JSON.stringify({ selectedEntityIds }),
+        body: JSON.stringify(selectionBody(analysis, selectedEntityIds)),
         signal,
       })) as DocumentAnonymizationApiResponse;
       if (
@@ -57,7 +75,6 @@ export function createApiProcessor(endpoint: string): DocumentProcessor {
       }
       const binary = atob(value.download.contentBase64);
       const bytes = Uint8Array.from(binary, (character) => character.charCodeAt(0));
-      const selected = new Set(selectedEntityIds);
       return {
         originalText: analysis.originalText,
         anonymizedText: value.anonymizedText,
@@ -70,9 +87,13 @@ export function createApiProcessor(endpoint: string): DocumentProcessor {
       };
     },
     async summarize(analysis, selectedEntityIds, language, signal): Promise<string> {
+      const body: DocumentSummaryApiRequest = {
+        ...selectionBody(analysis, selectedEntityIds),
+        language,
+      };
       const value = (await request(`${base}/${encodeURIComponent(analysis.id)}/summarize`, {
         headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
-        body: JSON.stringify({ selectedEntityIds, language }),
+        body: JSON.stringify(body),
         signal,
       })) as DocumentSummaryApiResponse;
       if (!value || typeof value.summary !== 'string' || !value.summary.trim()) {
@@ -80,6 +101,26 @@ export function createApiProcessor(endpoint: string): DocumentProcessor {
       }
       return value.summary;
     },
+  };
+}
+
+/** The selection as the contract sends it: detected IDs apart from the ranges marked by hand. */
+function selectionBody(
+  analysis: AnalyzedDocument,
+  selectedEntityIds: readonly string[],
+): DocumentAnonymizationApiRequest {
+  const selected = new Set(selectedEntityIds);
+  const manual = new Set(
+    analysis.entities.filter((entity) => entity.manual).map((entity) => entity.id),
+  );
+  const manualEntities = analysis.entities
+    .filter((entity) => entity.manual && selected.has(entity.id))
+    .sort((a, b) => a.start - b.start)
+    .map(({ start, end, type }) => ({ start, end, type }));
+  return {
+    selectedEntityIds: selectedEntityIds.filter((id) => !manual.has(id)),
+    // The key is left out when nothing was marked by hand, so those requests stay unchanged.
+    ...(manualEntities.length ? { manualEntities } : {}),
   };
 }
 

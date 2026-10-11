@@ -143,7 +143,14 @@ label {
   text-align: right;
   font-weight: 400;
 }
+.entity-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 4px;
+}
 .entity-option {
+  flex: 1;
+  min-width: 0;
   display: grid;
   grid-template-columns: 15px minmax(0, 1fr);
   align-items: flex-start;
@@ -155,7 +162,7 @@ label {
 .category-items .entity-option:first-child {
   padding-top: 0;
 }
-.category-items > div > .entity-option:last-child {
+.category-items > div > .entity-item:last-child .entity-option {
   padding-bottom: 8px;
 }
 .entity-option input {
@@ -174,6 +181,33 @@ label {
   font-size: 0.68rem;
   margin-top: 1px;
   line-height: 1.2;
+}
+.entity-option .manual-badge {
+  width: fit-content;
+  padding: 0 6px;
+  border-radius: 999px;
+  color: var(--accent-text);
+  background: var(--accent-soft);
+  font-weight: 500;
+}
+.remove-manual {
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+  margin-top: 3px;
+  padding: 0;
+  border: 0;
+  color: var(--muted);
+}
+.remove-manual:hover {
+  color: var(--ink);
+  background: var(--accent-soft);
+}
+/* Bootstrap's .btn:focus-visible removes the outline and has no shadow colour for a bare .btn. */
+.remove-manual:focus-visible {
+  outline: 2px solid var(--accent-text);
+  outline-offset: 1px;
+  color: var(--ink);
 }
 .empty-entities {
   margin: 0;

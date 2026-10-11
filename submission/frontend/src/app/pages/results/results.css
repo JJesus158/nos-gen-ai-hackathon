@@ -60,55 +60,51 @@
   color: var(--accent-text);
   background: var(--accent-soft);
 }
-.view-switch {
-  display: flex;
-  gap: 4px;
-  margin-left: auto;
-}
-.view-option {
-  padding: 3px 8px;
-  border: 1px solid var(--line-bright);
-  border-radius: 4px;
-  color: var(--muted);
-  background: transparent;
-  font: inherit;
-  cursor: pointer;
-}
-.view-option.is-selected {
-  color: var(--accent-text);
-  background: var(--accent-soft);
-}
-.summary-error {
-  margin: 8px 14px 0;
-  color: var(--error);
-  font-size: 0.75rem;
-}
-.results-actions {
-  display: flex;
-  align-items: center;
-  gap: 8px;
+.masked-text {
+  filter: blur(5px);
+  user-select: none;
 }
 .summarize-button {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  padding: 3px 8px;
-  border-color: #2f8cff;
-  color: #fff;
-  background: #1976d2;
+  gap: 6px;
+  padding: 4px 10px;
   font-size: 0.72rem;
 }
-.summarize-button:hover {
-  border-color: #1264b5;
-  color: #fff;
-  background: #1264b5;
+/* Masked text or its summary: a small segmented control in the heading. */
+.view-switch {
+  display: inline-flex;
+  padding: 2px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface);
 }
-.summarize-button:disabled {
-  opacity: 0.65;
+.view-option {
+  padding: 3px 10px;
+  border: 0;
+  border-radius: 999px;
+  color: var(--muted);
+  background: transparent;
+  font-size: 0.7rem;
+  font-weight: 500;
+  cursor: pointer;
 }
-.masked-text {
-  filter: blur(5px);
-  user-select: none;
+.view-option.is-selected {
+  color: var(--button-ink);
+  background: var(--accent);
+}
+.view-option:focus-visible {
+  outline: 2px solid var(--accent-text);
+  outline-offset: 2px;
+}
+.summary-error {
+  margin: 8px 12px 0;
+  color: var(--error);
+  font-size: 0.76rem;
+}
+.page-action-group {
+  display: flex;
+  gap: 12px;
 }
 @media (max-width: 1200px) {
   .workspace-page > .document-workspace.comparison {
@@ -141,10 +137,6 @@
     flex-basis: auto;
     justify-content: flex-start;
     gap: 8px;
-  }
-  .results-actions {
-    flex-direction: column;
-    align-items: flex-end;
   }
   .mask-controls {
     flex-wrap: wrap;

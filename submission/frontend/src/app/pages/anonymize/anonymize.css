@@ -164,27 +164,6 @@
   grid-row: 1;
   justify-self: end;
 }
-.preview-view-toggle {
-  flex: 0 0 auto;
-  display: flex;
-  padding: 1px;
-  border: 1px solid var(--line-bright);
-  border-radius: 6px;
-  background: var(--surface);
-  overflow: hidden;
-}
-.preview-view-toggle button {
-  padding: 1px 5px;
-  border: 0;
-  border-radius: 6px;
-  color: var(--muted);
-  background: transparent;
-  font-size: 0.72rem;
-}
-.preview-view-toggle button.is-selected {
-  color: var(--accent-text);
-  background: var(--accent-soft);
-}
 .analysis-pdf-controls {
   grid-column: 2;
   grid-row: 1;
@@ -334,6 +313,19 @@
 .analysis-grid .paper {
   box-shadow: none;
 }
+/* The form for a selection is positioned inside the paper. */
+.paper {
+  position: relative;
+}
+/* Outline and background only, so the text keeps its layout. */
+.pending-highlight {
+  background: transparent;
+}
+.pending-highlight.is-open {
+  background: var(--accent-soft);
+  outline: 1px dashed var(--accent-text);
+  outline-offset: 1px;
+}
 .anonymization-modal-backdrop {
   position: fixed;
   z-index: 1050;
@@ -379,6 +371,13 @@
     grid-template-columns: minmax(0, 1fr);
     grid-auto-rows: max-content;
   }
+  /* The preview does not scroll here, so the selection form may extend past its panel. */
+  .analysis-grid .preview-panel {
+    overflow: visible;
+  }
+  .preview-panel .panel-heading {
+    border-radius: 7px 7px 0 0;
+  }
 }
 @media (max-width: 575px) {
   .workspace-page {
@@ -398,9 +397,6 @@
   }
   .home-intro {
     padding-bottom: 20px;
-  }
-  .upload-panel {
-    min-height: 0;
   }
   .upload-actions {
     align-items: stretch;
@@ -430,8 +426,8 @@
     font-size: 0.74rem;
     gap: 6px;
   }
-  .analysis-grid { grid-template-columns: minmax(0, 1fr); }
   .upload-panel {
+    min-height: 0;
     padding: 12px;
   }
   .upload-body.has-file {
@@ -491,4 +487,36 @@
   .drop-zone h3 {
     margin-bottom: 8px;
   }
+}
+.manual-hint {
+  flex-shrink: 0;
+  margin: 8px 12px 0;
+  color: var(--muted);
+  font-size: 0.7rem;
+}
+/* PDF or text: a small segmented control in the preview heading. */
+.view-switch {
+  display: inline-flex;
+  padding: 2px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface);
+}
+.view-option {
+  padding: 3px 10px;
+  border: 0;
+  border-radius: 999px;
+  color: var(--muted);
+  background: transparent;
+  font-size: 0.7rem;
+  font-weight: 500;
+  cursor: pointer;
+}
+.view-option.is-selected {
+  color: var(--button-ink);
+  background: var(--accent);
+}
+.view-option:focus-visible {
+  outline: 2px solid var(--accent-text);
+  outline-offset: 2px;
 }

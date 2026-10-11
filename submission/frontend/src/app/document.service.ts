@@ -21,7 +21,7 @@ import { documentFingerprint, loadMarks, saveMarks } from './manual-storage';
 export type DocumentStage = 'document' | 'analysis' | 'anonymization' | 'results';
 export type SelectionState = 'all' | 'some' | 'none';
 
-export const MIN_ANONYMIZATION_DURATION = 5000;
+export const MIN_ANONYMIZATION_DURATION = 500;
 
 @Injectable({ providedIn: 'root' })
 export class DocumentService {

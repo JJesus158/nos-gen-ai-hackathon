@@ -25,21 +25,21 @@ li {
 li:not(:last-child)::after {
   content: '';
   position: absolute;
-  top: 14px;
-  left: calc(50% + 21px);
-  right: calc(-50% + 21px);
+  top: 18px;
+  left: calc(50% + 25px);
+  right: calc(-50% + 25px);
   height: 1px;
   background: var(--line-bright);
 }
 .step-marker {
   display: grid;
   place-items: center;
-  width: 28px;
-  height: 28px;
+  width: 36px;
+  height: 36px;
   border: 1px solid var(--line-bright);
   border-radius: 50%;
   background: var(--background);
-  font-size: 0.7rem;
+  font-size: 0.9rem;
 }
 .current {
   color: var(--ink);
@@ -81,10 +81,10 @@ li.complete::after {
     margin-bottom: 10px;
   }
   .step-marker {
-    width: 24px;
-    height: 24px;
+    width: 32px;
+    height: 32px;
   }
   li:not(:last-child)::after {
-    top: 12px;
+    top: 16px;
   }
 }

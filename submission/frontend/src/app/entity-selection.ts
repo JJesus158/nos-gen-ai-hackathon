@@ -4,6 +4,7 @@ import {
   computed,
   ElementRef,
   inject,
+  signal,
   viewChild,
 } from '@angular/core';
 import { faXmark } from '@fortawesome/free-solid-svg-icons';
@@ -22,6 +23,7 @@ export class EntitySelection {
   protected readonly language = inject(LanguageService);
   protected readonly categoryLabel = categoryLabel;
   protected readonly removeIcon = faXmark;
+  private readonly expandedCategories = signal<Record<string, boolean>>({});
   protected readonly groups = computed(() => {
     const entities = this.documents.analysis()?.entities ?? [];
     return [...new Set(entities.map((entity) => entity.type))].map((type) => {
@@ -33,6 +35,15 @@ export class EntitySelection {
     () => this.documents.analysis()?.entities.map((entity) => entity.id) ?? [],
   );
   private readonly region = viewChild.required<ElementRef<HTMLElement>>('region');
+
+  protected isCategoryOpen(type: string): boolean {
+    return this.expandedCategories()[type] ?? true;
+  }
+
+  protected toggleCategory(type: string): void {
+    const open = this.isCategoryOpen(type);
+    this.expandedCategories.update((categories) => ({ ...categories, [type]: !open }));
+  }
 
   protected remove(id: string): void {
     // The button leaves with its item: keep keyboard focus in the list.

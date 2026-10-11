@@ -4,7 +4,6 @@
       <h1 id="intro-title" tabindex="-1">{{ language.text().heroTitle }}</h1>
       <p>{{ language.text().heroDescription }}</p>
     </section>
-    <app-document-progress />
     <section
       id="submit-document"
       class="upload-section"
@@ -96,14 +95,16 @@
               </div>
             </div>
           }
-          @if (error(); as issue) {
-            <p class="error-message" role="alert">{{ language.text()[issue] }}</p>
-          }
-          @if (documents.error()) {
-            <p class="error-message" role="alert">{{ language.text().processingError }}</p>
-          }
         </div>
         <div class="upload-actions">
+          <div class="upload-error" aria-live="polite">
+            @if (error(); as issue) {
+              <p class="error-message" role="alert">{{ language.text()[issue] }}</p>
+            }
+            @if (documents.error()) {
+              <p class="error-message" role="alert">{{ language.text().processingError }}</p>
+            }
+          </div>
           <button
             type="button"
             class="btn btn-primary"
@@ -133,6 +134,7 @@
         documents.processing() ? language.text().processing : ''
       }}</span>
     </section>
+    <app-document-progress />
   </div>
 } @else if (documents.result()) {
   <app-results (restart)="remove()" (back)="backToReview()" />
@@ -181,81 +183,158 @@
       tabindex="0"
     >
       <section class="panel preview-panel">
-        <div class="panel-heading">
-          <h2 id="preview-title">{{ language.text().documentPreview }}</h2>
-          <span id="manual-hint" class="sample-label">{{ language.text().manualHint }}</span>
+        <div class="panel-heading preview-heading">
+          <h2 id="preview-title">
+            {{ language.text().documentPreview }}
+          </h2>
+          @if (showPdf()) {
+            <div class="analysis-pdf-controls" role="toolbar" aria-label="PDF zoom controls">
+              <button
+                type="button"
+                (click)="zoomPreviewOut()"
+                [disabled]="previewZoom() <= 0.5"
+                aria-label="Zoom out"
+              >
+                −
+              </button>
+              <button type="button" (click)="resetPreviewZoom()" aria-label="Reset zoom">
+                {{ (previewZoom() * 100).toFixed(0) }}%
+              </button>
+              <button
+                type="button"
+                (click)="zoomPreviewIn()"
+                [disabled]="previewZoom() >= 2.5"
+                aria-label="Zoom in"
+              >
+                +
+              </button>
+              <button type="button" (click)="fitPreviewWidth()" aria-label="Fit PDF to width">
+                ↔
+              </button>
+              <button type="button" (click)="fitPreviewHeight()" aria-label="Fit PDF to height">
+                ↕
+              </button>
+            </div>
+          }
+          @if (pdfViewAvailable()) {
+            <div
+              class="view-switch"
+              role="group"
+              [attr.aria-label]="language.text().previewViewLabel"
+            >
+              <button
+                type="button"
+                class="view-option"
+                [class.is-selected]="previewView() === 'pdf'"
+                [attr.aria-pressed]="previewView() === 'pdf'"
+                (click)="showPreview('pdf')"
+              >
+                {{ language.text().pdfView }}
+              </button>
+              <button
+                type="button"
+                class="view-option"
+                [class.is-selected]="previewView() === 'text'"
+                [attr.aria-pressed]="previewView() === 'text'"
+                (click)="showPreview('text')"
+              >
+                {{ language.text().textView }}
+              </button>
+            </div>
+          }
+          <span class="preview-file-name">{{ documents.file()?.name }}</span>
         </div>
+        @if (!showPdf()) {
+          <p id="manual-hint" class="manual-hint">{{ language.text().manualHint }}</p>
+        }
         <div
           #previewRegion
           class="paper-scroll"
           role="region"
           aria-labelledby="preview-title"
-          aria-describedby="manual-hint"
+          [attr.aria-describedby]="showPdf() ? null : 'manual-hint'"
           tabindex="0"
           (keyup)="keyUp($event)"
         >
-          <div #paper class="paper">
-            @if (analysis.source === 'example') {
-              <span class="paper-brand">{{ language.text().sampleDocument }}</span>
+          @if (!showPdf()) {
+            @if (analysis.source === 'api' && !pdfViewAvailable()) {
+              <p class="small muted" role="status">{{ language.text().pdfMappingUnavailable }}</p>
             }
-            <h3>{{ documents.file()?.name }}</h3>
-            <!-- Offsets come from the text of this element: it must hold the document text only. -->
-            <div #documentText class="document-text" (pointerup)="pointerUp($event)">
-              @for (segment of segments(); track $index) {
-                @if (segment.sensitive) {
-                  <mark
-                    class="category-highlight"
-                    [class.is-selected]="documents.isSelected(segment.entityId!)"
-                    [style.--category-color]="categoryDetails(segment.type!).color"
-                    >{{ segment.text }}</mark
-                  >
-                } @else if (segment.pending) {
-                  <mark class="pending-highlight" [class.is-open]="formOpen()">{{
-                    segment.text
-                  }}</mark>
-                } @else {
-                  <span>{{ segment.text }}</span>
+            <div #paper class="paper">
+              <!-- Offsets come from the text of this element: it must hold the document text only. -->
+              <div
+                #documentText
+                class="document-text analysis-text-preview"
+                (pointerup)="pointerUp($event)"
+              >
+                @for (segment of segments(); track $index) {
+                  @if (segment.sensitive) {
+                    <mark
+                      class="category-highlight"
+                      [class.is-selected]="documents.isSelected(segment.entityId!)"
+                      [style.--category-color]="categoryDetails(segment.type!).color"
+                      >{{ segment.text }}</mark
+                    >
+                  } @else if (segment.pending) {
+                    <mark class="pending-highlight" [class.is-open]="formOpen()">{{
+                      segment.text
+                    }}</mark>
+                  } @else {
+                    <span>{{ segment.text }}</span>
+                  }
                 }
+              </div>
+              @for (selection of forms(); track selection.key) {
+                <app-manual-entity-form
+                  [class.is-hidden]="!formOpen()"
+                  [style.top.px]="formPosition().top"
+                  [style.left.px]="formPosition().left"
+                  [text]="selection.text"
+                  [overlap]="selection.overlap"
+                  [deselected]="
+                    selection.overlap && documents.selectionState(selection.overlapped) === 'none'
+                  "
+                  [occurrences]="selection.occurrences.length"
+                  [defaultCategory]="lastCategory()"
+                  (added)="addManual($event)"
+                  (selectExisting)="selectExisting()"
+                  (closed)="closeForm(true)"
+                  (focusout)="formFocusOut($event)"
+                />
               }
             </div>
-            @for (selection of forms(); track selection.key) {
-              <app-manual-entity-form
-                [class.is-hidden]="!formOpen()"
-                [style.top.px]="formPosition().top"
-                [style.left.px]="formPosition().left"
-                [text]="selection.text"
-                [overlap]="selection.overlap"
-                [deselected]="
-                  selection.overlap && documents.selectionState(selection.overlapped) === 'none'
-                "
-                [occurrences]="selection.occurrences.length"
-                [defaultCategory]="lastCategory()"
-                (added)="addManual($event)"
-                (selectExisting)="selectExisting()"
-                (closed)="closeForm(true)"
-                (focusout)="formFocusOut($event)"
-              />
-            }
-          </div>
+          } @else if (highlightedPdf(); as pdf) {
+            <app-pdf-preview
+              [file]="pdf"
+              [fullSize]="true"
+              [showControls]="false"
+              [zoomLevel]="previewZoom()"
+            />
+          } @else {
+            <p role="status">{{ language.text().previewLoading }}</p>
+          }
         </div>
       </section>
       <app-entity-selection />
     </div>
     <span class="visually-hidden manual-status" role="status">{{ announcement() }}</span>
     <div class="page-actions">
-      <button type="button" class="btn btn-outline-secondary" (click)="backToDocument()">
-        <svg
-          width="12"
-          height="12"
-          [attr.viewBox]="'0 0 ' + backIcon.icon[0] + ' ' + backIcon.icon[1]"
-          fill="currentColor"
-          aria-hidden="true"
-          focusable="false"
-        >
-          <path [attr.d]="backIcon.icon[4]" />
-        </svg>
-        {{ language.text().back }}</button
-      ><button
+      <div class="page-action-group">
+        <button type="button" class="btn btn-outline-secondary" (click)="backToDocument()">
+          <svg
+            width="12"
+            height="12"
+            [attr.viewBox]="'0 0 ' + backIcon.icon[0] + ' ' + backIcon.icon[1]"
+            fill="currentColor"
+            aria-hidden="true"
+            focusable="false"
+          >
+            <path [attr.d]="backIcon.icon[4]" />
+          </svg>
+          {{ language.text().back }}
+        </button>
+      </div>
+      <button
         type="button"
         class="btn btn-primary"
         [disabled]="documents.processing()"

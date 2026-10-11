@@ -37,6 +37,8 @@ import {
   snapToWords,
   textRange,
 } from '../../manual-selection';
+import { createHighlightedPdf } from '../../pdf-highlight';
+import { entityPdfBoxes } from '../../pdf-mapping';
 
 /** Text selected in the preview, waiting for a category. */
 interface PendingSelection extends TextRange {
@@ -82,6 +84,31 @@ export class Anonymize {
   protected readonly backIcon = faArrowLeft;
   protected readonly categoryDetails = categoryDetails;
   protected readonly dragging = signal(false);
+  protected readonly previewZoom = signal(1);
+  /**
+   * The PDF can be shown with the identified data highlighted: every detected occurrence has its
+   * geometry. Occurrences marked by hand come from the text and have none; they are listed and
+   * masked all the same, and appear in the text view.
+   */
+  protected readonly pdfMappingAvailable = computed(() => {
+    const analysis = this.documents.analysis();
+    return (
+      analysis?.source === 'api' &&
+      analysis.entities
+        .filter((entity) => !entity.manual)
+        .every((entity) => entityPdfBoxes(entity, analysis.originalText).length > 0)
+    );
+  });
+  protected readonly highlightedPdf = signal<Blob | null>(null);
+  protected readonly pdfPreviewFailed = signal(false);
+  /** Which preview the user chose; the text is where data can be marked by hand. */
+  protected readonly previewView = signal<'pdf' | 'text'>('pdf');
+  protected readonly pdfViewAvailable = computed(
+    () => this.pdfMappingAvailable() && !this.pdfPreviewFailed(),
+  );
+  protected readonly showPdf = computed(
+    () => this.previewView() === 'pdf' && this.pdfViewAvailable(),
+  );
   protected readonly error = signal<'fileError' | 'emptyPdf' | null>(null);
   protected readonly pending = signal<PendingSelection | null>(null);
   /**
@@ -144,6 +171,30 @@ export class Anonymize {
     effect(() => {
       if (this.documents.processing()) this.closeForm(false);
     });
+    // The PDF with the selected occurrences highlighted, rebuilt whenever the selection changes.
+    effect((onCleanup) => {
+      const file = this.documents.file();
+      const analysis = this.documents.analysis();
+      const selectedIds = this.documents.selectedEntityIds();
+      const mappingAvailable = this.pdfMappingAvailable();
+      let cancelled = false;
+      onCleanup(() => {
+        cancelled = true;
+      });
+      this.pdfPreviewFailed.set(false);
+      if (!file || !analysis || !mappingAvailable) {
+        this.highlightedPdf.set(null);
+        return;
+      }
+      const detected = analysis.entities.filter((entity) => !entity.manual);
+      void createHighlightedPdf(file, detected, selectedIds, analysis.originalText)
+        .then((pdf) => {
+          if (!cancelled) this.highlightedPdf.set(pdf);
+        })
+        .catch(() => {
+          if (!cancelled) this.pdfPreviewFailed.set(true);
+        });
+    });
   }
 
   protected choose(event: Event): void {
@@ -184,6 +235,32 @@ export class Anonymize {
   protected backToReview(): void {
     this.documents.returnToReview();
     this.focusHeading();
+  }
+
+  protected zoomPreviewIn(): void {
+    this.previewZoom.update((value) => Math.min(2.5, value + 0.25));
+  }
+
+  protected zoomPreviewOut(): void {
+    this.previewZoom.update((value) => Math.max(0.5, value - 0.25));
+  }
+
+  protected resetPreviewZoom(): void {
+    this.previewZoom.set(1);
+  }
+
+  protected fitPreviewWidth(): void {
+    this.previewZoom.set(1);
+  }
+
+  protected fitPreviewHeight(): void {
+    this.previewZoom.set(0.5);
+  }
+
+  /** PDF or text; a form open in the text view is closed when the PDF is shown. */
+  protected showPreview(view: 'pdf' | 'text'): void {
+    if (view === 'pdf') this.closeForm(false);
+    this.previewView.set(view);
   }
 
   /**
@@ -282,7 +359,10 @@ export class Anonymize {
     }, TOUCH_SELECTION_DELAY);
   }
 
-  /** Opens the form for the text selected in the preview, snapped to whole words. */
+  /**
+   * Opens the form for the text selected in the preview, snapped to whole words. In the PDF view
+   * there is no text container, so nothing happens.
+   */
   private captureSelection(): void {
     const analysis = this.documents.analysis();
     const container = this.documentText()?.nativeElement;

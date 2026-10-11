@@ -38,6 +38,20 @@ describe('PDF selection', () => {
     return fixture;
   }
 
+  /** Waits for the text view, which replaces a PDF preview that could not be rendered. */
+  async function textPanels(
+    fixture: ComponentFixture<Anonymize>,
+    count: number,
+  ): Promise<HTMLElement[]> {
+    const root = fixture.nativeElement as HTMLElement;
+    const panels = () => Array.from(root.querySelectorAll<HTMLElement>('.paper .document-text'));
+    for (let i = 0; i < 100 && panels().length < count; i++) {
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      await fixture.whenStable();
+    }
+    return panels();
+  }
+
   it('rejects non-PDF and empty files and disables analysis without selection', async () => {
     const fixture = await setup();
     const input = fixture.nativeElement.querySelector('input') as HTMLInputElement;
@@ -166,13 +180,12 @@ describe('PDF selection', () => {
     root.querySelector<HTMLButtonElement>('.page-actions .btn-primary')!.click();
     await new Promise((resolve) => setTimeout(resolve, 5100));
     await fixture.whenStable();
-    const texts = () =>
-      Array.from(root.querySelectorAll('.paper .document-text'), (element) => element.textContent);
-    expect(texts()).toEqual([originalText, result.anonymizedText]);
+    const texts = async () => (await textPanels(fixture, 2)).map((element) => element.textContent);
+    expect(await texts()).toEqual([originalText, result.anonymizedText]);
     expect(root.querySelector('.paper img, .paper script')).toBeNull();
     TestBed.inject(LanguageService).setPreference('pt-PT');
     await fixture.whenStable();
-    expect(texts()).toEqual([originalText, result.anonymizedText]);
+    expect(await texts()).toEqual([originalText, result.anonymizedText]);
     expect(root.querySelector('#results-title')!.textContent).toBe('Comparar as duas versões');
     const createUrl = spyOn(URL, 'createObjectURL').and.returnValue('blob:backend-document');
     const revokeUrl = spyOn(URL, 'revokeObjectURL');
@@ -211,10 +224,22 @@ describe('PDF selection', () => {
     await fixture.whenStable();
     const root = fixture.nativeElement as HTMLElement;
     const all = root.querySelector<HTMLInputElement>('.select-all input')!;
-    const names = root.querySelector<HTMLInputElement>('.category-group legend input')!;
+    const names = root.querySelector<HTMLInputElement>('.category-group .category-heading input')!;
     const first = root.querySelector<HTMLInputElement>('[data-entity-id="name-1"]')!;
     const second = root.querySelector<HTMLInputElement>('[data-entity-id="name-2"]')!;
     expect(all.checked).toBeTrue();
+    // Categories start open; the toggle collapses one and makes its items inert.
+    const toggle = root.querySelector<HTMLButtonElement>('.category-toggle')!;
+    expect(root.querySelectorAll('.category-group.is-open').length).toBe(2);
+    expect(toggle.getAttribute('aria-expanded')).toBe('true');
+    toggle.click();
+    await fixture.whenStable();
+    expect(root.querySelectorAll('.category-group.is-open').length).toBe(1);
+    expect(toggle.getAttribute('aria-expanded')).toBe('false');
+    expect(root.querySelector('.category-items[inert]')).not.toBeNull();
+    toggle.click();
+    await fixture.whenStable();
+    expect(root.querySelectorAll('.category-group.is-open').length).toBe(2);
     first.click();
     await fixture.whenStable();
     expect(documents.selectedEntityIds()).toEqual(['name-2', 'id-1']);
@@ -310,9 +335,7 @@ describe('PDF selection', () => {
     await fixture.whenStable();
     fixture.nativeElement.querySelector('.upload-actions button').click();
     await fixture.whenStable();
-    expect(fixture.nativeElement.querySelector('.document-text').textContent).toBe(
-      result.originalText,
-    );
+    expect((await textPanels(fixture, 1))[0].textContent).toBe(result.originalText);
     expect(fixture.nativeElement.querySelector('.empty-entities')).not.toBeNull();
     expect(fixture.nativeElement.querySelectorAll('.entity-option').length).toBe(0);
     expect(fixture.nativeElement.querySelectorAll('mark').length).toBe(0);
@@ -355,7 +378,7 @@ describe('PDF selection', () => {
     it('categorizes selected text, which is then listed, highlighted and masked', async () => {
       const { fixture, documents, root } = await review();
       const text = documents.analysis()!.originalText;
-      expect(root.querySelector('.preview-panel .panel-heading')!.textContent).toContain(
+      expect(root.querySelector('#manual-hint')!.textContent).toBe(
         'Select text in the document to mark data that was not identified.',
       );
       await selectText(fixture, 'compan');
@@ -383,13 +406,13 @@ describe('PDF selection', () => {
         'Names',
         'Identifiers',
         'Contact details',
-        'Date of birth',
+        'Dates of birth',
         'Financial data',
         'Health',
         'Sensitive data',
         'Private life',
-        'Age',
-        'Occupation',
+        'Ages',
+        'Occupations',
         'Healthcare professionals',
         'Sex and gender',
         'New category…',
@@ -418,9 +441,9 @@ describe('PDF selection', () => {
       expect(Array.from(marks, (mark) => mark.textContent)).toContain('acompanhamento');
       expect(root.querySelector('.document-text')!.textContent).toBe(text);
       const item = root.querySelector('[data-entity-id="manual-1"]')!.closest('.entity-item')!;
-      expect(item.closest('fieldset')!.querySelector('legend')!.textContent).toContain(
-        'Identifiers',
-      );
+      expect(
+        item.closest('.category-group')!.querySelector('.category-heading')!.textContent,
+      ).toContain('Identifiers');
       expect(item.querySelector('strong')!.textContent).toBe('acompanhamento');
       expect(item.querySelector('.manual-badge')!.textContent).toBe('Added by you');
       expect(item.querySelector('label button')).toBeNull();

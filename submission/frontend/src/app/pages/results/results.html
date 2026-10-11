@@ -16,7 +16,14 @@
           <h2 id="original-title">{{ language.text().original }}</h2>
           <span class="preview-file-name">{{ documents.file()?.name }}</span>
         </div>
-        <div class="paper-scroll" role="region" aria-labelledby="original-title" tabindex="0">
+        <div
+          #originalScroll
+          class="paper-scroll"
+          role="region"
+          aria-labelledby="original-title"
+          tabindex="0"
+          (scroll)="syncScroll('original')"
+        >
           @if (originalPreviewFailed() || !documents.file()) {
             <!-- The PDF cannot be rendered: the analyzed text, with the protected data marked. -->
             <div class="paper">
@@ -104,9 +111,16 @@
         @if (documents.summaryError()) {
           <p class="summary-error" role="alert">{{ language.text().summaryError }}</p>
         }
-        <div class="paper-scroll" role="region" aria-labelledby="anonymized-title" tabindex="0">
+        <div
+          #protectedScroll
+          class="paper-scroll"
+          role="region"
+          aria-labelledby="anonymized-title"
+          tabindex="0"
+          (scroll)="syncScroll('protected')"
+        >
           @if (view() === 'summary' && documents.summary(); as summary) {
-            <div class="paper">
+            <div class="paper summary-paper">
               <span class="paper-brand">{{ language.text().summaryNote }}</span>
               <h3>{{ language.text().summaryTitle }}</h3>
               <div class="document-text">{{ summary }}</div>

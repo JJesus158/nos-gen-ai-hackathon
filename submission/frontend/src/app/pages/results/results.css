@@ -7,6 +7,9 @@
 .comparison .preview-panel .panel-heading {
   justify-content: space-between;
 }
+.workspace-page > .document-workspace.comparison {
+  gap: 16px;
+}
 .comparison .pdf-result-preview,
 .comparison .pdf-result-preview app-pdf-preview {
   display: block;
@@ -20,6 +23,9 @@
 }
 .comparison .pdf-result-preview {
   min-height: 100%;
+}
+.comparison .summary-paper {
+  box-shadow: none;
 }
 .mask-controls {
   position: sticky;
@@ -100,12 +106,50 @@
   display: flex;
   gap: 12px;
 }
-@media (max-width: 575px) {
-  .comparison {
+@media (max-width: 1200px) {
+  .workspace-page > .document-workspace.comparison {
     grid-template-columns: minmax(0, 1fr);
+    grid-auto-rows: max-content;
   }
-  .page-action-group {
-    flex: 1;
+}
+@media (max-width: 575px) {
+  .workspace-page {
+    gap: 14px;
+  }
+  .workspace-page > .document-workspace.comparison {
+    grid-template-columns: minmax(0, 1fr);
+    row-gap: 14px !important;
+    column-gap: 0;
+  }
+  .page-actions {
+    align-items: center;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    gap: 12px;
+  }
+  .page-actions .page-action-group {
+    flex: 0 0 auto;
+  }
+  .page-actions > .page-action-group:last-child {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    flex-basis: auto;
+    justify-content: flex-start;
     gap: 8px;
+  }
+  .mask-controls {
+    flex-wrap: wrap;
+  }
+  .mask-label {
+    flex: 0 0 100%;
+    margin-right: 0;
+  }
+  .mask-option:first-of-type {
+    margin-left: 0;
+  }
+  .page-actions .page-action-group .btn {
+    flex: 0 0 auto;
+    width: auto;
   }
 }

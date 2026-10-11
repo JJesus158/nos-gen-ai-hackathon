@@ -67,6 +67,10 @@ export class Results {
   );
   private readonly injector = inject(Injector);
   private readonly summaryOption = viewChild<ElementRef<HTMLButtonElement>>('summaryOption');
+  /* Keeps the original and protected panels scrolled together (not in the summary view). */
+  private readonly originalScroll = viewChild<ElementRef<HTMLDivElement>>('originalScroll');
+  private readonly protectedScroll = viewChild<ElementRef<HTMLDivElement>>('protectedScroll');
+  private syncingScroll = false;
 
   constructor() {
     effect((onCleanup) => {
@@ -107,6 +111,26 @@ export class Results {
     if (!result) return;
     const boxed = this.maskMode() === 'boxes' ? this.boxedPdf() : null;
     saveFile(boxed ?? result.download.blob, result.download.name);
+  }
+
+  protected syncScroll(source: 'original' | 'protected'): void {
+    if (this.syncingScroll || this.view() === 'summary') return;
+    const from =
+      source === 'original'
+        ? this.originalScroll()?.nativeElement
+        : this.protectedScroll()?.nativeElement;
+    const to =
+      source === 'original'
+        ? this.protectedScroll()?.nativeElement
+        : this.originalScroll()?.nativeElement;
+    if (!from || !to) return;
+
+    this.syncingScroll = true;
+    to.scrollTop = from.scrollTop;
+    to.scrollLeft = from.scrollLeft;
+    requestAnimationFrame(() => {
+      this.syncingScroll = false;
+    });
   }
 
   protected downloadSummary(): void {

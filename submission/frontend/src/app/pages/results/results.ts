@@ -1,16 +1,20 @@
 import {
+  afterNextRender,
   ChangeDetectionStrategy,
   Component,
   computed,
   effect,
+  ElementRef,
+  Injector,
   inject,
   output,
   signal,
+  viewChild,
 } from '@angular/core';
 import { DocumentService } from '../../document.service';
 import { LanguageService } from '../../language.service';
 import { DocumentProgress } from '../../document-progress';
-import { faArrowLeft, faDownload } from '@fortawesome/free-solid-svg-icons';
+import { faArrowLeft, faDownload, faWandMagicSparkles } from '@fortawesome/free-solid-svg-icons';
 import { categoryDetails } from '../../document-categories';
 import { PdfPreview } from '../../pdf-preview';
 import { createBlurredPreviewPdf } from '../../pdf-highlight';
@@ -29,6 +33,7 @@ export class Results {
   protected readonly documents = inject(DocumentService);
   protected readonly downloadIcon = faDownload;
   protected readonly backIcon = faArrowLeft;
+  protected readonly summarizeIcon = faWandMagicSparkles;
   protected readonly categoryDetails = categoryDetails;
   /** "asterisk" shows the file that is downloaded; "blur" previews the original with its data covered. */
   protected readonly maskMode = signal<'blur' | 'asterisk'>('asterisk');
@@ -39,6 +44,18 @@ export class Results {
   protected readonly resultIsPdf = computed(
     () => this.documents.result()?.download.blob.type === 'application/pdf',
   );
+  /** What the "Anonymized" panel shows once a summary exists. */
+  protected readonly view = signal<'masked' | 'summary'>('masked');
+  /** For the status region: "Summary ready" once it arrives. */
+  protected readonly announcement = signal('');
+  /** A summary exists, but the interface language changed since: offer it again. */
+  protected readonly summaryOutdated = computed(
+    () =>
+      this.documents.summary() !== null &&
+      this.documents.summaryLanguage() !== this.language.preference(),
+  );
+  private readonly injector = inject(Injector);
+  private readonly summaryOption = viewChild<ElementRef<HTMLButtonElement>>('summaryOption');
 
   constructor() {
     effect((onCleanup) => {
@@ -63,18 +80,40 @@ export class Results {
         });
     });
   }
+
+  protected async summarize(): Promise<void> {
+    this.announcement.set('');
+    if (!(await this.documents.summarize(this.language.preference()))) return;
+    this.view.set('summary');
+    this.announcement.set(this.language.text().summaryReady);
+    // The button that opened it is gone: keep the keyboard on the summary's switch.
+    afterNextRender(() => this.summaryOption()?.nativeElement.focus({ preventScroll: true }), {
+      injector: this.injector,
+    });
+  }
+
   protected download(): void {
     const result = this.documents.result();
-    if (!result) return;
-    const url = URL.createObjectURL(result.download.blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = result.download.name;
-    link.click();
-    setTimeout(() => URL.revokeObjectURL(url), 0);
+    if (result) saveFile(result.download.blob, result.download.name);
+  }
+
+  protected downloadSummary(): void {
+    const summary = this.documents.summary();
+    if (summary === null) return;
+    const stem = this.documents.file()?.name.replace(/\.[^.]+$/, '') || 'document';
+    saveFile(new Blob([summary], { type: 'text/plain;charset=utf-8' }), `${stem}-summary.txt`);
   }
 
   protected backToReview(): void {
     this.back.emit();
   }
+}
+
+function saveFile(blob: Blob, name: string): void {
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = name;
+  link.click();
+  setTimeout(() => URL.revokeObjectURL(url), 0);
 }

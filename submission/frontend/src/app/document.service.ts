@@ -19,6 +19,15 @@ import { TextRange, maskReplacement, overlaps, splitsSurrogatePair } from './man
 import { documentFingerprint, loadMarks, saveMarks } from './manual-storage';
 
 export type DocumentStage = 'document' | 'analysis' | 'anonymization' | 'results';
+
+/** A summary belongs to the result it was made from; another result starts over. */
+interface SummaryState {
+  readonly result: ProcessedDocument;
+  readonly language: string;
+  readonly text: string | null;
+  readonly pending: boolean;
+  readonly failed: boolean;
+}
 export type SelectionState = 'all' | 'some' | 'none';
 
 export const MIN_ANONYMIZATION_DURATION = 500;
@@ -35,6 +44,7 @@ export class DocumentService {
   private readonly pending = signal(false);
   private readonly failed = signal(false);
   private readonly categories = signal<readonly string[]>([]);
+  private readonly summaryState = signal<SummaryState | null>(null);
   private request = 0;
   private controller?: AbortController;
   private manualCount = 0;
@@ -54,6 +64,12 @@ export class DocumentService {
    * from the browser storage; the list itself is never stored.
    */
   readonly customCategories = this.categories.asReadonly();
+  /** The current result rewritten as readable text, once summarize() succeeded. */
+  readonly summary = computed(() => this.summaryOf(this.processed())?.text ?? null);
+  readonly summarizing = computed(() => this.summaryOf(this.processed())?.pending ?? false);
+  readonly summaryError = computed(() => this.summaryOf(this.processed())?.failed ?? false);
+  /** The language the summary was asked in; another one can be requested after a switch. */
+  readonly summaryLanguage = computed(() => this.summaryOf(this.processed())?.language ?? null);
   readonly originalSegments = computed(() => {
     const analysis = this.analysis();
     if (!analysis) return [];
@@ -279,6 +295,45 @@ export class DocumentService {
         this.controller = undefined;
       }
     }
+  }
+
+  /**
+   * Asks for a readable rewrite of the current result, for the same selection, in `language`.
+   * Leaving the results (back, another document) abandons it; a new result starts over.
+   */
+  async summarize(language: string): Promise<boolean> {
+    const analysis = this.analysis();
+    const result = this.result();
+    if (!analysis || !result || this.processing() || this.summarizing()) return false;
+    const selectedIds = result.entities.map((entity) => entity.id);
+    const request = ++this.request;
+    const controller = new AbortController();
+    this.controller = controller;
+    this.summaryState.set({ result, language, text: null, pending: true, failed: false });
+    try {
+      const text = await this.processor.summarize(
+        analysis,
+        selectedIds,
+        language,
+        controller.signal,
+      );
+      if (request !== this.request || controller.signal.aborted) return false;
+      if (typeof text !== 'string' || !text.trim()) throw new Error('Invalid summary');
+      this.summaryState.set({ result, language, text, pending: false, failed: false });
+      return true;
+    } catch {
+      if (request === this.request && !controller.signal.aborted) {
+        this.summaryState.set({ result, language, text: null, pending: false, failed: true });
+      }
+      return false;
+    } finally {
+      if (request === this.request) this.controller = undefined;
+    }
+  }
+
+  private summaryOf(result: ProcessedDocument | null): SummaryState | null {
+    const state = this.summaryState();
+    return state && result && state.result === result ? state : null;
   }
 
   clear(): void {

@@ -58,8 +58,54 @@
   filter: blur(5px);
   user-select: none;
 }
+.summarize-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  font-size: 0.72rem;
+}
+/* Masked text or its summary: a small segmented control in the heading. */
+.view-switch {
+  display: inline-flex;
+  padding: 2px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface);
+}
+.view-option {
+  padding: 3px 10px;
+  border: 0;
+  border-radius: 999px;
+  color: var(--muted);
+  background: transparent;
+  font-size: 0.7rem;
+  font-weight: 500;
+  cursor: pointer;
+}
+.view-option.is-selected {
+  color: var(--button-ink);
+  background: var(--accent);
+}
+.view-option:focus-visible {
+  outline: 2px solid var(--accent-text);
+  outline-offset: 2px;
+}
+.summary-error {
+  margin: 8px 12px 0;
+  color: var(--error);
+  font-size: 0.76rem;
+}
+.page-action-group {
+  display: flex;
+  gap: 12px;
+}
 @media (max-width: 575px) {
   .comparison {
     grid-template-columns: minmax(0, 1fr);
+  }
+  .page-action-group {
+    flex: 1;
+    gap: 8px;
   }
 }

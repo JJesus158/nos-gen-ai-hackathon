@@ -1,7 +1,8 @@
-"""The two endpoints of submission/frontend/API_CONTRACT.md.
+"""The endpoints of submission/frontend/API_CONTRACT.md.
 
 POST /api/documents/analyze            PDF -> text + detected occurrences
 POST /api/documents/{id}/anonymize     selected ids -> masked text + PDF
+POST /api/documents/{id}/summarize     selected ids -> readable summary
 
 The download is the uploaded PDF rebuilt with the selected words
 redacted. If that cannot be done safely, it falls back to the masked
@@ -14,7 +15,7 @@ pool, so the Gemini call never blocks the event loop.
 import base64
 import logging
 from pathlib import Path
-from typing import Annotated, List, Optional
+from typing import Annotated, List, Literal, Optional, Tuple
 
 from fastapi import FastAPI, File, HTTPException, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
@@ -22,7 +23,7 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field, StrictInt, StringConstraints
 
 from anonymizer import (
-    detector, entities, extract, masker, pdf_reconstructor,
+    detector, entities, extract, masker, pdf_reconstructor, summarizer,
 )
 from anonymizer.masker import LineRange
 from anonymizer.spans import Span
@@ -85,6 +86,17 @@ class AnonymizeIn(BaseModel):
     ] = []
 
 
+class SummarizeIn(AnonymizeIn):
+    """The same selection as anonymize, plus the language of the summary
+    (the document's own when absent)."""
+
+    language: Optional[Literal["pt-PT", "en"]] = None
+
+
+class SummaryOut(BaseModel):
+    summary: str
+
+
 class DownloadOut(BaseModel):
     name: str
     mediaType: str
@@ -144,6 +156,32 @@ def analyze(file: UploadFile = File(...)) -> AnalysisOut:
 @app.post("/api/documents/{analysis_id}/anonymize",
           response_model=AnonymizeOut)
 def anonymize(analysis_id: str, body: AnonymizeIn) -> AnonymizeOut:
+    analysis, spans, ranges = _selection(analysis_id, body)
+    masked = masker.mask(analysis.text, spans, ranges=ranges)
+    return AnonymizeOut(
+        anonymizedText=masked,
+        download=_download(analysis, spans, ranges, masked),
+    )
+
+
+@app.post("/api/documents/{analysis_id}/summarize",
+          response_model=SummaryOut)
+def summarize(analysis_id: str, body: SummarizeIn) -> SummaryOut:
+    """The masked text, and only it, rewritten by the model as a summary."""
+    analysis, spans, ranges = _selection(analysis_id, body)
+    masked = masker.mask_with_positions(analysis.text, spans, ranges=ranges)
+    try:
+        summary = summarizer.summarize(masked, body.language, spans)
+    except Exception:
+        log.exception("summary failed")
+        raise HTTPException(500, "Summary failed")
+    return SummaryOut(summary=summary)
+
+
+def _selection(
+        analysis_id: str, body: AnonymizeIn,
+) -> Tuple[Analysis, List[Span], List[LineRange]]:
+    """The analysis and what the selection masks, or the contract's error."""
     analysis = store.get(analysis_id)
     if analysis is None:
         raise HTTPException(404, "Analysis not found or expired")
@@ -152,18 +190,11 @@ def anonymize(analysis_id: str, body: AnonymizeIn) -> AnonymizeOut:
     if len(set(ids)) != len(ids) or not set(ids) <= known:
         raise HTTPException(400, "Unknown or duplicate entity ids")
     manual = [(m.start, m.end, m.type) for m in body.manualEntities]
-
     try:
         ranges = entities.manual_ranges(analysis.text, manual)
     except ValueError:
         raise HTTPException(400, "Invalid manual entity range")
-
-    spans = entities.selected_spans(analysis.entities, ids)
-    masked = masker.mask(analysis.text, spans, ranges=ranges)
-    return AnonymizeOut(
-        anonymizedText=masked,
-        download=_download(analysis, spans, ranges, masked),
-    )
+    return analysis, entities.selected_spans(analysis.entities, ids), ranges
 
 
 def _download(analysis: Analysis, spans: List[Span],

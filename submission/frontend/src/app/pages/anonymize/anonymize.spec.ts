@@ -5,6 +5,7 @@ import { DocumentService } from '../../document.service';
 import { AnalyzedDocument, DOCUMENT_PROCESSOR, ProcessedDocument } from '../../document-processor';
 import { LanguageService } from '../../language.service';
 import { textRange } from '../../manual-selection';
+import { exampleDocumentProcessor } from '../../example-document';
 import { MANUAL_STORAGE_KEY } from '../../manual-storage';
 
 jasmine.DEFAULT_TIMEOUT_INTERVAL = 10000;
@@ -765,6 +766,128 @@ describe('PDF selection', () => {
       form.querySelector<HTMLButtonElement>('button[type="submit"]')!.click();
       await fixture.whenStable();
       expect(root.querySelector('.manual-status')!.textContent).toBe('Added to Fees $$ and $&');
+    });
+  });
+
+  describe('summarizing the result', () => {
+    async function results() {
+      const fixture = await setup();
+      const documents = TestBed.inject(DocumentService);
+      documents.select(new File(['%PDF-demo'], 'ficha.pdf', { type: 'application/pdf' }));
+      await documents.analyze();
+      await documents.anonymize();
+      await fixture.whenStable();
+      return { fixture, documents, root: fixture.nativeElement as HTMLElement };
+    }
+
+    const summarizeButton = (root: HTMLElement) =>
+      root.querySelector<HTMLButtonElement>('.summarize-button');
+    /** Both panels fall back to text (fake PDF, .txt download) once rendering has failed. */
+    const papers = async (fixture: ComponentFixture<Anonymize>) =>
+      (await textPanels(fixture, 2)).map((element) => element.textContent);
+    const title = (root: HTMLElement) =>
+      root.querySelector('#anonymized-title')!.textContent!.trim();
+    /** The processor answers in a microtask: let it settle before reading the view. */
+    async function settle(fixture: ComponentFixture<Anonymize>): Promise<void> {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      await fixture.whenStable();
+    }
+
+    it('rewrites the anonymized text as a readable summary in the interface language', async () => {
+      const { fixture, documents, root } = await results();
+      const button = summarizeButton(root)!;
+      expect(button.textContent).toContain('Summarize');
+      expect(root.querySelector('.view-switch')).toBeNull();
+      button.click();
+      fixture.detectChanges();
+      expect(summarizeButton(root)!.disabled).toBeTrue();
+      expect(summarizeButton(root)!.textContent).toContain('Summarizing…');
+      await settle(fixture);
+      expect(summarizeButton(root)).toBeNull();
+      const summary = documents.summary()!;
+      expect(summary).toContain('Follow-up record');
+      expect(title(root)).toBe('Readable summary');
+      expect((await papers(fixture))[1]).toBe(summary);
+      expect(root.querySelector('.protected-panel .paper-brand')!.textContent).toBe(
+        'Written from the anonymized text only; the hidden data is not sent to create the summary.',
+      );
+      // The keyboard lands on the summary's switch, and the status says it is ready.
+      expect(document.activeElement!.textContent!.trim()).toBe('Summary');
+      expect(root.querySelector('.protected-panel [role="status"]')!.textContent!.trim()).toBe(
+        'Summary ready',
+      );
+      const options = root.querySelectorAll<HTMLButtonElement>('.view-option');
+      expect(Array.from(options, (option) => option.textContent!.trim())).toEqual([
+        'Masked text',
+        'Summary',
+      ]);
+      expect(options[1].getAttribute('aria-pressed')).toBe('true');
+      options[0].click();
+      await fixture.whenStable();
+      expect((await papers(fixture))[1]).toBe(documents.result()!.anonymizedText);
+      expect(title(root)).toBe('Anonymized');
+      options[1].click();
+      await fixture.whenStable();
+      expect((await papers(fixture))[1]).toBe(summary);
+
+      const createUrl = spyOn(URL, 'createObjectURL').and.returnValue('blob:summary');
+      spyOn(URL, 'revokeObjectURL');
+      let downloaded: { name: string; href: string } | undefined;
+      spyOn(HTMLAnchorElement.prototype, 'click').and.callFake(function (this: HTMLAnchorElement) {
+        downloaded = { name: this.download, href: this.href };
+      });
+      const buttons = Array.from(
+        root.querySelectorAll<HTMLButtonElement>('.page-action-group .btn'),
+      );
+      const downloadSummary = buttons.find((b) => b.textContent!.trim() === 'Download summary')!;
+      expect(downloadSummary).toBeDefined();
+      downloadSummary.click();
+      expect(downloaded).toEqual({ name: 'ficha-summary.txt', href: 'blob:summary' });
+      expect(await (createUrl.calls.mostRecent().args[0] as Blob).text()).toBe(summary);
+
+      TestBed.inject(LanguageService).setPreference('pt-PT');
+      await fixture.whenStable();
+      expect(title(root)).toBe('Resumo legível');
+      expect((await papers(fixture))[1]).toBe(summary);
+      // The summary is in English now: it is offered again, beside the switch.
+      expect(root.querySelector('.view-switch')).not.toBeNull();
+      expect(summarizeButton(root)!.textContent).toContain('Resumir');
+      summarizeButton(root)!.click();
+      await settle(fixture);
+      expect(documents.summary()).toContain('Ficha de acompanhamento');
+      expect(summarizeButton(root)).toBeNull();
+
+      root.querySelector<HTMLButtonElement>('.page-actions .btn-outline-secondary')!.click();
+      await settle(fixture);
+      expect(documents.summary()).toBeNull();
+      await documents.anonymize();
+      await settle(fixture);
+      expect(summarizeButton(root)!.textContent).toContain('Resumir');
+      expect((await papers(fixture))[1]).toBe(documents.result()!.anonymizedText);
+    });
+
+    it('shows an error when the summary fails and lets the user try again', async () => {
+      let attempts = 0;
+      TestBed.overrideProvider(DOCUMENT_PROCESSOR, {
+        useValue: {
+          ...exampleDocumentProcessor,
+          summarize: async () => {
+            if (++attempts === 1) throw new Error('Unavailable');
+            return 'Resumo curto.';
+          },
+        },
+      });
+      const { fixture, root } = await results();
+      summarizeButton(root)!.click();
+      await settle(fixture);
+      expect(root.querySelector('.summary-error')!.textContent).toBe(
+        'The summary could not be generated. Please try again.',
+      );
+      expect(summarizeButton(root)!.disabled).toBeFalse();
+      summarizeButton(root)!.click();
+      await settle(fixture);
+      expect(root.querySelector('.summary-error')).toBeNull();
+      expect((await papers(fixture))[1]).toBe('Resumo curto.');
     });
   });
 });

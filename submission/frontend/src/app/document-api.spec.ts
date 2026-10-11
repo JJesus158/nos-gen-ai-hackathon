@@ -159,6 +159,46 @@ describe('Two-stage document API adapter', () => {
     expect(body().selectedEntityIds).toEqual(['id-1']);
   });
 
+  it('asks for a summary with the same selection and the language, and checks the answer', async () => {
+    const processor = createApiProcessor(endpoint);
+    const document: AnalyzedDocument = {
+      ...analyzed,
+      entities: [
+        analyzed.entities[0],
+        { id: 'manual-1', start: 13, end: 15, type: 'ID', replacement: '*', manual: true },
+        analyzed.entities[1],
+      ],
+    };
+    reply({ summary: '  Um registo com um nome e um identificador ocultos. ' });
+    const summary = await processor.summarize(
+      document,
+      ['name-1', 'manual-1'],
+      'pt-PT',
+      controller.signal,
+    );
+    expect(summary).toBe('  Um registo com um nome e um identificador ocultos. ');
+    const [url, options] = fetchRequest.calls.mostRecent().args as [string, RequestInit];
+    expect(url).toBe('/api/documents/analysis%2Fid%201/summarize');
+    expect(options.method).toBe('POST');
+    expect(options.signal).toBe(controller.signal);
+    expect(new Headers(options.headers).get('Content-Type')).toBe('application/json');
+    expect(JSON.parse(options.body as string)).toEqual({
+      selectedEntityIds: ['name-1'],
+      manualEntities: [{ start: 13, end: 15, type: 'ID' }],
+      language: 'pt-PT',
+    });
+    for (const body of [{}, { summary: '' }, { summary: '   ' }, { summary: 42 }, null]) {
+      reply(body);
+      await expectAsync<unknown, unknown>(
+        processor.summarize(document, ['name-1'], 'en', controller.signal),
+      ).toBeRejected();
+    }
+    reply({ message: 'Summary failed' }, 500);
+    await expectAsync<unknown, unknown>(
+      processor.summarize(document, ['name-1'], 'en', controller.signal),
+    ).toBeRejected();
+  });
+
   it('rejects HTTP failures and invalid JSON in either stage', async () => {
     const processor = createApiProcessor(endpoint);
     for (const run of [

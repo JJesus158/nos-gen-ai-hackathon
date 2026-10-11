@@ -76,7 +76,11 @@ describe('Document selection workflow', () => {
   isolateStoredMarks();
 
   beforeEach(() => {
-    processor = jasmine.createSpyObj<DocumentProcessor>('processor', ['analyze', 'anonymize']);
+    processor = jasmine.createSpyObj<DocumentProcessor>('processor', [
+      'analyze',
+      'anonymize',
+      'summarize',
+    ]);
     processor.analyze.and.resolveTo(analysis());
     processor.anonymize.and.callFake(async (document, ids) => result(document, ids));
     TestBed.configureTestingModule({
@@ -597,6 +601,71 @@ describe('Document selection workflow', () => {
     }
   });
 
+  it('summarizes the current result for its selection and forgets it with the result', async () => {
+    expect(await documents.summarize('pt-PT')).toBeFalse();
+    await analyzeSelected();
+    expect(await documents.summarize('pt-PT')).toBeFalse();
+    documents.setEntities(['name-2'], false);
+    await documents.anonymize();
+    const pending = deferred<string>();
+    processor.summarize.and.returnValue(pending.promise);
+    const request = documents.summarize('pt-PT');
+    expect(documents.summarizing()).toBeTrue();
+    expect(await documents.summarize('pt-PT')).toBeFalse();
+    const [document, ids, language, signal] = processor.summarize.calls.mostRecent().args;
+    expect(document).toBe(documents.analysis()!);
+    expect(ids).toEqual(['name-1', 'id-1']);
+    expect(language).toBe('pt-PT');
+    expect(signal instanceof AbortSignal).toBeTrue();
+    expect(documents.processing()).toBeFalse();
+    expect(documents.stage()).toBe('results');
+    pending.resolve('Um registo com dois dados ocultos.');
+    expect(await request).toBeTrue();
+    expect(documents.summary()).toBe('Um registo com dois dados ocultos.');
+    expect(documents.summaryLanguage()).toBe('pt-PT');
+    expect(documents.summarizing()).toBeFalse();
+    expect(documents.summaryError()).toBeFalse();
+    expect(processor.summarize).toHaveBeenCalledTimes(1);
+    documents.returnToReview();
+    expect(documents.summary()).toBeNull();
+    expect(documents.summaryLanguage()).toBeNull();
+    await documents.anonymize();
+    expect(documents.summary()).toBeNull();
+  });
+
+  it('reports a failed summary, allows a retry and drops a late answer after leaving', async () => {
+    await analyzeSelected();
+    await documents.anonymize();
+    processor.summarize.and.returnValues(
+      Promise.reject(new Error('Unavailable')),
+      Promise.resolve('   '),
+      Promise.resolve('Resumo.'),
+    );
+    expect(await documents.summarize('en')).toBeFalse();
+    expect(documents.summaryError()).toBeTrue();
+    expect(documents.summary()).toBeNull();
+    expect(documents.result()).not.toBeNull();
+    expect(await documents.summarize('en')).toBeFalse();
+    expect(documents.summaryError()).toBeTrue();
+    expect(await documents.summarize('en')).toBeTrue();
+    expect(documents.summaryError()).toBeFalse();
+    expect(documents.summary()).toBe('Resumo.');
+    documents.returnToReview();
+    await documents.anonymize();
+    const pending = deferred<string>();
+    processor.summarize.and.returnValue(pending.promise);
+    const request = documents.summarize('en');
+    const signal = processor.summarize.calls.mostRecent().args[3];
+    documents.returnToReview();
+    expect(signal.aborted).toBeTrue();
+    pending.resolve('Tarde.');
+    expect(await request).toBeFalse();
+    await documents.anonymize();
+    expect(documents.summary()).toBeNull();
+    expect(documents.summarizing()).toBeFalse();
+    expect(documents.summaryError()).toBeFalse();
+  });
+
   it('rejects invalid artifacts and results that do not match the selected occurrences', async () => {
     await analyzeSelected();
     documents.setEntities(['name-1'], false);
@@ -640,6 +709,24 @@ describe('Local selected anonymization', () => {
     expect(completed.anonymizedText).toContain('Diagnóstico: [SAÚDE]');
     expect(await completed.download.blob.text()).toBe(completed.anonymizedText);
     expect(completed.entities.map((entity) => entity.id)).toEqual(selected);
+  });
+
+  it('summarizes the example in the chosen language without revealing what it masks', async () => {
+    const signal = new AbortController().signal;
+    const document = await exampleDocumentProcessor.analyze(new File(['x'], 'local.pdf'), signal);
+    const pt = await exampleDocumentProcessor.summarize(document, [], 'pt-PT', signal);
+    const en = await exampleDocumentProcessor.summarize(document, [], 'en', signal);
+    expect(pt).toContain('Ficha de acompanhamento');
+    expect(en).toContain('Follow-up record');
+    for (const hidden of ['Ana Correia', '34', '123456789', 'Liberdade', 'asma', 'salbutamol']) {
+      expect(pt).not.toContain(hidden);
+      expect(en).not.toContain(hidden);
+    }
+    const cancelled = new AbortController();
+    cancelled.abort();
+    await expectAsync<unknown, unknown>(
+      exampleDocumentProcessor.summarize(document, [], 'en', cancelled.signal),
+    ).toBeRejected();
   });
 
   it('masks manual occurrences word by word, keeping punctuation and line breaks', async () => {

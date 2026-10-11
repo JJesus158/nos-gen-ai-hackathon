@@ -17,7 +17,7 @@ from pydantic import BaseModel
 
 BACKEND_DIR = Path(__file__).resolve().parents[1]
 CACHE_DIR = BACKEND_DIR / ".cache" / "gemini"
-DEFAULT_MODEL = "gemini-3.5-flash-lite"
+DEFAULT_MODEL = "gemini-3.8-flash"
 RETRY_CODES = {429, 500, 503}
 MAX_TRIES = 4
 SEED = 42

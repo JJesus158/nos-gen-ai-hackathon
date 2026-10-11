@@ -19,7 +19,7 @@ from typing import List, Optional
 from fastapi import FastAPI, File, HTTPException, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from anonymizer import detector, entities, extract, pdf_reconstructor
 from anonymizer.spans import Span
@@ -38,6 +38,16 @@ app.add_middleware(
 store = AnalysisStore()
 
 
+class PdfBoxOut(BaseModel):
+    start: int
+    end: int
+    page: int
+    x: float
+    y: float
+    width: float
+    height: float
+
+
 class EntityOut(BaseModel):
     id: str
     start: int
@@ -45,6 +55,7 @@ class EntityOut(BaseModel):
     type: str
     replacement: str
     reason: Optional[str] = None
+    boxes: List[PdfBoxOut] = Field(default_factory=list)
 
 
 class AnalysisOut(BaseModel):
@@ -86,7 +97,8 @@ def analyze(file: UploadFile = File(...)) -> AnalysisOut:
     if not data.lstrip().startswith(b"%PDF"):
         raise HTTPException(415, "Only PDF documents are supported")
     try:
-        text = extract.extract_text_from_bytes(data)
+        layout = extract.extract_layout_from_bytes(data)
+        text = layout.text
     except Exception:
         raise HTTPException(422, "The document cannot be read")
     if not text.strip():
@@ -105,6 +117,7 @@ def analyze(file: UploadFile = File(...)) -> AnalysisOut:
             EntityOut(
                 id=e.id, start=e.start, end=e.end, type=e.type,
                 replacement=e.replacement, reason=e.reason or None,
+                boxes=layout.boxes_for(e.start, e.end),
             )
             for e in found
         ],

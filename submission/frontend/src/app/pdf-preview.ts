@@ -34,6 +34,8 @@ export class PdfPreview {
   readonly file = input<Blob | null>(null);
   /** The file could not be rendered as a PDF; the parent may show its text instead. */
   readonly unavailable = output<void>();
+  /** The actual PDF scale used for the current rendering. */
+  readonly scaleChange = output<number>();
   readonly fullSize = input(false);
   readonly highlights = input<readonly DocumentEntity[]>([]);
   readonly sourceText = input('');
@@ -129,6 +131,7 @@ export class PdfPreview {
                 ? availableHeight / original.height
                 : availableWidth / original.width) * zoom)
               : Math.min(80 / original.width, 100 / original.height);
+            if (number === 1) this.scaleChange.emit(scale);
             const viewport = page.getViewport({ scale });
             const canvas = this.document.createElement('canvas');
             canvas.width = Math.ceil(viewport.width);

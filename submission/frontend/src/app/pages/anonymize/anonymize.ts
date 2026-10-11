@@ -49,6 +49,7 @@ export class Anonymize {
   protected readonly categoryDetails = categoryDetails;
   protected readonly dragging = signal(false);
   protected readonly previewZoom = signal(1);
+  protected readonly previewScale = signal(1);
   protected readonly previewFit = signal<'width' | 'height'>('width');
   protected readonly previewMode = signal<'pdf' | 'text'>('pdf');
   protected readonly pdfMappingAvailable = computed(() => {

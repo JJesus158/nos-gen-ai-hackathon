@@ -25,7 +25,7 @@ export class EntitySelection {
   );
 
   protected isCategoryOpen(type: string): boolean {
-    return this.expandedCategories()[type] ?? true;
+    return this.expandedCategories()[type] ?? false;
   }
 
   protected toggleCategory(type: string): void {

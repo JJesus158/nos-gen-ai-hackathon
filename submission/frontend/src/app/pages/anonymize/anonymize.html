@@ -207,7 +207,7 @@
           @if (previewMode() === 'pdf' && pdfMappingAvailable() && !pdfPreviewFailed() && highlightedPdf()) {
             <div class="analysis-pdf-controls" role="toolbar" aria-label="PDF zoom controls">
                 <button type="button" (click)="zoomPreviewOut()" [disabled]="previewZoom() <= 0.5" aria-label="Zoom out">−</button>
-                <button type="button" (click)="resetPreviewZoom()" aria-label="Reset zoom">{{ (previewZoom() * 100).toFixed(0) }}%</button>
+                <button type="button" (click)="resetPreviewZoom()" aria-label="Reset zoom">{{ (previewScale() * 100).toFixed(0) }}%</button>
                 <button type="button" (click)="zoomPreviewIn()" [disabled]="previewZoom() >= 2.5" aria-label="Zoom in">+</button>
                 <button type="button" (click)="fitPreviewWidth()" aria-label="Fit PDF to width">
                   <svg
@@ -272,6 +272,7 @@
               [showControls]="false"
               [zoomLevel]="previewZoom()"
               [fit]="previewFit()"
+              (scaleChange)="previewScale.set($event)"
             />
           } @else {
             <p role="status">{{ language.text().previewLoading }}</p>

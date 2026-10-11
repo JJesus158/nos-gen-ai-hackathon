@@ -51,9 +51,6 @@ label {
 .category-group.is-open {
   padding-bottom: 8px;
 }
-.category-group:last-child {
-  border-bottom: 1px solid var(--line);
-}
 .category-heading {
   display: flex;
   align-items: center;

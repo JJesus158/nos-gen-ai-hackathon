@@ -1,8 +1,47 @@
-"""PDF text extraction using PyMuPDF."""
+"""PDF text extraction using PyMuPDF, with OCR for scanned pages."""
 from bisect import bisect_right
 from dataclasses import dataclass
+import os
 from pathlib import Path
+from typing import Optional
+
 import pymupdf
+
+OCR_DPI = 300
+
+
+def ocr_language() -> str:
+    """Tesseract languages to use: Portuguese and English when installed
+    (the Docker image has both), "" when Tesseract is not available."""
+    try:
+        tessdata = pymupdf.get_tessdata()
+    except Exception:
+        return ""
+    if not tessdata:
+        return ""
+    return "+".join(
+        lang for lang in ("por", "eng")
+        if os.path.exists(os.path.join(tessdata, f"{lang}.traineddata"))
+    )
+
+
+def page_textpage(page: pymupdf.Page) -> Optional[pymupdf.TextPage]:
+    """OCR text for a scanned page (images, no text layer), else None.
+
+    Pass the result as `textpage=` to page.get_text(); None reads the
+    page's own text. The PDF rebuild calls this too, so both see the
+    same words in the same places.
+    """
+    text = page.get_text("text")
+    # Keep this helper compatible with lightweight page doubles used by tests.
+    if not isinstance(text, str) or text.strip() or not hasattr(page, "get_images"):
+        return None
+    if not page.get_images():
+        return None
+    language = ocr_language()
+    if not language:
+        return None
+    return page.get_textpage_ocr(language=language, dpi=OCR_DPI, full=True)
 
 
 @dataclass(frozen=True)
@@ -53,7 +92,12 @@ def _extract_layout(document: pymupdf.Document) -> ExtractedDocument:
     offset = 0
     for page_number, page in enumerate(document, start=1):
         # The text and geometry share the exact same extraction order/flags.
-        raw = page.get_text("rawdict", sort=False, flags=pymupdf.TEXTFLAGS_TEXT)
+        raw = page.get_text(
+            "rawdict",
+            sort=False,
+            flags=pymupdf.TEXTFLAGS_TEXT,
+            textpage=page_textpage(page),
+        )
         # PyMuPDF's transform for rotated crop boxes is relative to the crop
         # area. Resolve it unrotated so the API always returns native PDF units.
         rotation = page.rotation

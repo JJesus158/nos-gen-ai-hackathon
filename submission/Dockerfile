@@ -12,6 +12,12 @@ RUN npx ng build --configuration production
 
 FROM python:3.12-slim
 ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1
+# Tesseract reads scanned PDFs (pages with no text layer), in Portuguese
+# and English; PyMuPDF finds it through the `tesseract` command.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+        tesseract-ocr tesseract-ocr-por \
+    && rm -rf /var/lib/apt/lists/*
 WORKDIR /app/backend
 COPY backend/requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt

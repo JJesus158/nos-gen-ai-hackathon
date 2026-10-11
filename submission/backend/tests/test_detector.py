@@ -127,3 +127,32 @@ def test_generate_json_uses_cache(monkeypatch, tmp_path):
 
     assert first == second == Detection(spans=[])
     assert len(calls) == 1
+
+
+# A model sometimes garbles accented letters in its answer: a no-break
+# space for "ú", or percent escapes. The span must still be found, with
+# the document's own text.
+AUTHORS = [
+    "Joel Jesus",
+    "Rúben Ferreira",
+    "Co-supervisor: Luís Frazão",
+    "Morada: Rua João de Deus",
+]
+
+
+@pytest.mark.parametrize("line, garbled, text", [
+    (2, "R ben Ferreira", "Rúben Ferreira"),
+    (3, "Lu s Fraz o", "Luís Frazão"),
+    (3, "Lu�s Fraz�o", "Luís Frazão"),
+    (4, "Jo%C3%A3o de Deus", "João de Deus"),
+])
+def test_locate_repairs_garbled_accents(line, garbled, text):
+    spans = detector._locate([found(line, garbled)], AUTHORS)
+    assert spans == [Span(line, text, Category.NAME, "r")]
+
+
+def test_garbled_fallback_never_matches_part_of_a_word():
+    """'R\\xa0b' is not a whole word anywhere: it stays unmatched on the
+    LLM's line, as any unknown text does."""
+    spans = detector._locate([found(2, "R b")], AUTHORS)
+    assert spans == [Span(2, "R b", Category.NAME, "r")]

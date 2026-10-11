@@ -6,6 +6,7 @@ import re
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
+from urllib.parse import unquote
 
 from pydantic import BaseModel
 
@@ -16,6 +17,10 @@ PROMPT_PATH = Path(__file__).resolve().parents[2] / "prompt.txt"
 PLACEHOLDER = "{{DOCUMENT}}"
 RUN_SPANS = "spans.json"
 RUN_INFO = "run.json"
+# Characters a model sometimes writes instead of an accented letter
+# (a no-break space for the "ú" of "Rúben"); the fallback search lets
+# each one stand for any single character.
+GARBLED = "\u00a0\ufffd"
 
 
 class DetectedSpan(BaseModel):
@@ -53,12 +58,47 @@ def _pieces(text: str, lines: List[str], hint: int) -> List[Piece]:
     1. whole words inside one line;
     2. whole words split by a line break (#4): one piece per line;
     3. part of a word, e.g. "72" in "72kg" (mask() masks the whole word):
-       at least two characters, start of a word before anywhere (#9).
-    Any whitespace between the words of `text` is accepted. Text found
-    nowhere stays on the hinted line, so mask() reports it as unmatched
-    instead of it being lost silently.
+       at least two characters, start of a word before anywhere (#9);
+    4. a value the model garbled (a no-break space for an accented
+       letter, or "Jo%C3%A3o" for "João"):
+       whole words again, with the accents repaired.
+    Any whitespace between the words of `text` is accepted. The pieces
+    always hold the document's own text. Text found nowhere stays on the
+    hinted line, so mask() reports it as unmatched instead of it being
+    lost silently.
     """
-    body = r"\s+".join(re.escape(word) for word in text.split())
+    found = _search(_body(text), lines, hint, partial=len(text) >= 2)
+    for body in _repaired_bodies(text):
+        if found:
+            break
+        found = _search(body, lines, hint, partial=False)
+    return found or [(min(max(hint, 1), len(lines)), text)]
+
+
+def _body(text: str) -> str:
+    """Regex for `text`, with any whitespace between its words."""
+    return r"\s+".join(re.escape(word) for word in text.split())
+
+
+def _repaired_bodies(text: str) -> List[str]:
+    """Regexes for a value whose accents the model garbled: percent
+    escapes decoded, and each GARBLED character matching any one."""
+    bodies = []
+    decoded = unquote(text)
+    if decoded != text:
+        bodies.append(_body(decoded))
+    if any(char in GARBLED for char in text):
+        words = re.split(r"[ \t\n]+", text.strip())
+        bodies.append(r"\s+".join(
+            "".join("." if c in GARBLED else re.escape(c) for c in word)
+            for word in words if word
+        ))
+    return bodies
+
+
+def _search(body: str, lines: List[str], hint: int,
+            partial: bool) -> List[Piece]:
+    """Tiers 1-3 of _pieces() for one regex body; [] if not found."""
     whole = re.compile(r"(?<!\w)" + body + r"(?!\w)")
 
     def nearest(found: Dict[int, List[Piece]]) -> List[Piece]:
@@ -88,7 +128,7 @@ def _pieces(text: str, lines: List[str], hint: int) -> List[Piece]:
     # Part of a word (#9): same order as the masker. At least two
     # characters, first at the start of a word ("50" in "50mg", not in
     # "1500mg"), then anywhere ("123" in "ABC123XYZ").
-    if len(text) >= 2:
+    if partial:
         for part in (re.compile(r"(?<!\w)" + body), re.compile(body)):
             glued = {}
             for i, line in enumerate(lines, 1):
@@ -97,8 +137,7 @@ def _pieces(text: str, lines: List[str], hint: int) -> List[Piece]:
                     glued[i] = [(i, match.group())]
             if glued:
                 return nearest(glued)
-
-    return [(min(max(hint, 1), len(lines)), text)]
+    return []
 
 
 def _locate(found: List[DetectedSpan], lines: List[str]) -> List[Span]:

@@ -866,6 +866,37 @@ describe('PDF selection', () => {
       expect((await papers(fixture))[1]).toBe(documents.result()!.anonymizedText);
     });
 
+    it('downloads what the panel shows: the summary or the document', async () => {
+      const { fixture, documents, root } = await results();
+      summarizeButton(root)!.click();
+      await settle(fixture);
+      const primary = () => root.querySelector<HTMLButtonElement>('.page-actions .btn-primary')!;
+      const fileName = () =>
+        root.querySelector('.protected-panel .preview-file-name')!.textContent!.trim();
+      const documentName = documents.result()!.download.name;
+      expect(primary().textContent!.trim()).toBe('Download summary');
+      expect(fileName()).toBe('ficha-summary.txt');
+
+      spyOn(URL, 'createObjectURL').and.returnValue('blob:file');
+      spyOn(URL, 'revokeObjectURL');
+      const saved: string[] = [];
+      spyOn(HTMLAnchorElement.prototype, 'click').and.callFake(function (this: HTMLAnchorElement) {
+        saved.push(this.download);
+      });
+      primary().click();
+      Array.from(root.querySelectorAll<HTMLButtonElement>('.page-actions .btn-outline-secondary'))
+        .find((button) => button.textContent!.trim() === 'Download document')!
+        .click();
+      expect(saved).toEqual(['ficha-summary.txt', documentName]);
+
+      root.querySelectorAll<HTMLButtonElement>('.view-option')[0].click();
+      await fixture.whenStable();
+      expect(primary().textContent!.trim()).toBe('Download document');
+      expect(fileName()).toBe(documentName);
+      primary().click();
+      expect(saved).toEqual(['ficha-summary.txt', documentName, documentName]);
+    });
+
     it('shows an error when the summary fails and lets the user try again', async () => {
       let attempts = 0;
       TestBed.overrideProvider(DOCUMENT_PROCESSOR, {

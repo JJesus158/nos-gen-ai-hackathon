@@ -97,7 +97,9 @@
               }
             </button>
           }
-          <span class="preview-file-name">{{ result.download.name }}</span>
+          <span class="preview-file-name">{{
+            savesSummary() ? summaryName() : result.download.name
+          }}</span>
         </div>
         @if (documents.summaryError()) {
           <p class="summary-error" role="alert">{{ language.text().summaryError }}</p>
@@ -118,14 +120,12 @@
             <div class="pdf-result-preview" [attr.aria-label]="language.text().firstPagePreview">
               <app-pdf-preview
                 [file]="
-                  maskMode() === 'blur'
-                    ? (blurredPreviewPdf() ?? result.download.blob)
+                  maskMode() === 'boxes'
+                    ? (boxedPdf() ?? result.download.blob)
                     : result.download.blob
                 "
                 [fullSize]="true"
                 [showControls]="false"
-                [maskMode]="maskMode() === 'blur' ? 'blur' : 'highlight'"
-                [highlights]="maskMode() === 'blur' ? result.entities : []"
                 [sourceText]="result.originalText"
                 (unavailable)="resultPreviewFailed.set(true)"
               />
@@ -147,11 +147,11 @@
             <button
               type="button"
               class="mask-option"
-              [class.is-selected]="maskMode() === 'blur'"
-              [attr.aria-pressed]="maskMode() === 'blur'"
-              (click)="maskMode.set('blur')"
+              [class.is-selected]="maskMode() === 'boxes'"
+              [attr.aria-pressed]="maskMode() === 'boxes'"
+              (click)="maskMode.set('boxes')"
             >
-              {{ language.text().blur }}
+              {{ language.text().boxes }}
             </button>
           </div>
         }
@@ -180,13 +180,22 @@
         <button type="button" class="btn btn-outline-secondary" (click)="restart.emit()">
           {{ language.text().chooseAnother }}
         </button>
+        <!-- The main button saves what the panel shows; the other file is beside it. -->
         @if (documents.summary() !== null) {
-          <button type="button" class="btn btn-outline-secondary" (click)="downloadSummary()">
-            {{ language.text().downloadSummary }}
+          <button
+            type="button"
+            class="btn btn-outline-secondary"
+            (click)="savesSummary() ? download() : downloadSummary()"
+          >
+            {{ savesSummary() ? language.text().download : language.text().downloadSummary }}
           </button>
         }
-        <button type="button" class="btn btn-primary" (click)="download()">
-          {{ language.text().download }}
+        <button
+          type="button"
+          class="btn btn-primary"
+          (click)="savesSummary() ? downloadSummary() : download()"
+        >
+          {{ savesSummary() ? language.text().downloadSummary : language.text().download }}
           <svg
             width="12"
             height="12"

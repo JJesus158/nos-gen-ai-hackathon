@@ -57,27 +57,31 @@ export async function createHighlightedPdf(
   return new Blob([buffer], { type: 'application/pdf' });
 }
 
-/** Creates a display-only protected PDF; sensitive areas are fully covered. */
-export async function createBlurredPreviewPdf(
-  source: Blob,
+/**
+ * The protected PDF from the backend (its sensitive text is already removed)
+ * with a light grey rounded box over each removed value. The asterisks stay
+ * visible through the box. Never call this with the original document: the
+ * boxes only decorate, they do not hide anything.
+ */
+export async function createBoxedPdf(
+  protectedPdf: Blob,
   entities: readonly DocumentEntity[],
   sourceText: string,
 ): Promise<Blob> {
-  const pdf = await PDFDocument.load(await source.arrayBuffer());
+  const pdf = await PDFDocument.load(await protectedPdf.arrayBuffer());
+  const pages = pdf.getPages();
   for (const entity of entities) {
     for (const box of entityPdfBoxes(entity, sourceText)) {
-      const page = pdf.getPages()[box.page - 1];
+      const page = pages[box.page - 1];
       if (!page) continue;
-      page.drawRectangle({
-        x: box.x,
-        y: box.y,
-        width: box.width,
-        height: box.height,
-        color: rgb(1, 1, 1),
-        // Keep the source visible underneath the CSS backdrop blur. The PDF
-        // preview hides a newly rendered page until its overlays are ready,
-        // so the source never flashes during a mode change.
-        opacity: 0.08,
+      const width = box.width + 2 * BOX_PADDING;
+      const height = box.height + 2 * BOX_PADDING;
+      // drawSvgPath puts the path's origin at (x, y) with y growing down.
+      page.drawSvgPath(roundedRect(width, height, Math.min(BOX_RADIUS, height / 2)), {
+        x: box.x - BOX_PADDING,
+        y: box.y + box.height + BOX_PADDING,
+        color: rgb(0.55, 0.57, 0.62),
+        opacity: 0.28,
       });
     }
   }
@@ -85,4 +89,23 @@ export async function createBlurredPreviewPdf(
   const buffer = new ArrayBuffer(bytes.byteLength);
   new Uint8Array(buffer).set(bytes);
   return new Blob([buffer], { type: 'application/pdf' });
+}
+
+const BOX_PADDING = 1.5;
+const BOX_RADIUS = 4;
+
+function roundedRect(width: number, height: number, radius: number): string {
+  const r = radius;
+  return [
+    `M ${r} 0`,
+    `H ${width - r}`,
+    `A ${r} ${r} 0 0 1 ${width} ${r}`,
+    `V ${height - r}`,
+    `A ${r} ${r} 0 0 1 ${width - r} ${height}`,
+    `H ${r}`,
+    `A ${r} ${r} 0 0 1 0 ${height - r}`,
+    `V ${r}`,
+    `A ${r} ${r} 0 0 1 ${r} 0`,
+    'Z',
+  ].join(' ');
 }

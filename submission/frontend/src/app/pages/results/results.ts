@@ -17,7 +17,7 @@ import { DocumentProgress } from '../../document-progress';
 import { faArrowLeft, faDownload, faWandMagicSparkles } from '@fortawesome/free-solid-svg-icons';
 import { categoryDetails } from '../../document-categories';
 import { PdfPreview } from '../../pdf-preview';
-import { createBlurredPreviewPdf } from '../../pdf-highlight';
+import { createBoxedPdf } from '../../pdf-highlight';
 
 @Component({
   selector: 'app-results',
@@ -35,9 +35,13 @@ export class Results {
   protected readonly backIcon = faArrowLeft;
   protected readonly summarizeIcon = faWandMagicSparkles;
   protected readonly categoryDetails = categoryDetails;
-  /** "asterisk" shows the file that is downloaded; "blur" previews the original with its data covered. */
-  protected readonly maskMode = signal<'blur' | 'asterisk'>('asterisk');
-  protected readonly blurredPreviewPdf = signal<Blob | null>(null);
+  /**
+   * "asterisk" is the protected PDF as the backend returned it; "boxes" is the
+   * same file with grey rounded boxes over the removed values. Both are built
+   * from the protected PDF, so what is shown is what is downloaded.
+   */
+  protected readonly maskMode = signal<'boxes' | 'asterisk'>('asterisk');
+  protected readonly boxedPdf = signal<Blob | null>(null);
   protected readonly originalPreviewFailed = signal(false);
   protected readonly resultPreviewFailed = signal(false);
   /** A .txt download (the backend's fallback, or the local example) is shown as text. */
@@ -48,6 +52,13 @@ export class Results {
   protected readonly view = signal<'masked' | 'summary'>('masked');
   /** For the status region: "Summary ready" once it arrives. */
   protected readonly announcement = signal('');
+  /** The main button saves what the panel shows: the summary or the document. */
+  protected readonly savesSummary = computed(
+    () => this.view() === 'summary' && this.documents.summary() !== null,
+  );
+  protected readonly summaryName = computed(
+    () => `${this.documents.file()?.name.replace(/\.[^.]+$/, '') || 'document'}-summary.txt`,
+  );
   /** A summary exists, but the interface language changed since: offer it again. */
   protected readonly summaryOutdated = computed(
     () =>
@@ -60,23 +71,21 @@ export class Results {
   constructor() {
     effect((onCleanup) => {
       const result = this.documents.result();
-      const source = this.documents.file();
       let cancelled = false;
       onCleanup(() => {
         cancelled = true;
       });
       this.originalPreviewFailed.set(false);
       this.resultPreviewFailed.set(false);
-      if (!result || !source) {
-        this.blurredPreviewPdf.set(null);
-        return;
-      }
-      void createBlurredPreviewPdf(source, result.entities, result.originalText)
+      this.boxedPdf.set(null);
+      // Only the protected PDF is decorated, never the original document.
+      if (!result || result.download.blob.type !== 'application/pdf') return;
+      void createBoxedPdf(result.download.blob, result.entities, result.originalText)
         .then((pdf) => {
-          if (!cancelled) this.blurredPreviewPdf.set(pdf);
+          if (!cancelled) this.boxedPdf.set(pdf);
         })
         .catch(() => {
-          if (!cancelled) this.blurredPreviewPdf.set(null);
+          if (!cancelled) this.boxedPdf.set(null);
         });
     });
   }
@@ -92,16 +101,18 @@ export class Results {
     });
   }
 
+  /** The protected document, with the grey boxes when that mode is shown. */
   protected download(): void {
     const result = this.documents.result();
-    if (result) saveFile(result.download.blob, result.download.name);
+    if (!result) return;
+    const boxed = this.maskMode() === 'boxes' ? this.boxedPdf() : null;
+    saveFile(boxed ?? result.download.blob, result.download.name);
   }
 
   protected downloadSummary(): void {
     const summary = this.documents.summary();
     if (summary === null) return;
-    const stem = this.documents.file()?.name.replace(/\.[^.]+$/, '') || 'document';
-    saveFile(new Blob([summary], { type: 'text/plain;charset=utf-8' }), `${stem}-summary.txt`);
+    saveFile(new Blob([summary], { type: 'text/plain;charset=utf-8' }), this.summaryName());
   }
 
   protected backToReview(): void {

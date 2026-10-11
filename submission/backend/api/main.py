@@ -14,19 +14,23 @@ pool, so the Gemini call never blocks the event loop.
 import base64
 import logging
 from pathlib import Path
-from typing import List, Optional
+from typing import Annotated, List, Optional
 
 from fastapi import FastAPI, File, HTTPException, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, StrictInt, StringConstraints
 
-from anonymizer import detector, entities, extract, pdf_reconstructor
+from anonymizer import (
+    detector, entities, extract, masker, pdf_reconstructor,
+)
+from anonymizer.masker import LineRange
 from anonymizer.spans import Span
 from api.frontend import mount_frontend, static_dir
 from api.store import Analysis, AnalysisStore
 
 MAX_BYTES = 10 * 1024 * 1024
+MAX_MANUAL_ENTITIES = 5000
 FRONTEND_ORIGINS = ["http://localhost:4200", "http://127.0.0.1:4200"]
 
 log = logging.getLogger("api")
@@ -64,8 +68,21 @@ class AnalysisOut(BaseModel):
     entities: List[EntityOut]
 
 
+class ManualEntityIn(BaseModel):
+    """An occurrence the user marked by hand, as UTF-16 offsets."""
+
+    start: StrictInt
+    end: StrictInt
+    type: Annotated[str, StringConstraints(
+        strip_whitespace=True, min_length=1, max_length=100,
+    )]
+
+
 class AnonymizeIn(BaseModel):
     selectedEntityIds: List[str]
+    manualEntities: Annotated[
+        List[ManualEntityIn], Field(max_length=MAX_MANUAL_ENTITIES),
+    ] = []
 
 
 class DownloadOut(BaseModel):
@@ -134,19 +151,26 @@ def anonymize(analysis_id: str, body: AnonymizeIn) -> AnonymizeOut:
     known = {e.id for e in analysis.entities}
     if len(set(ids)) != len(ids) or not set(ids) <= known:
         raise HTTPException(400, "Unknown or duplicate entity ids")
+    manual = [(m.start, m.end, m.type) for m in body.manualEntities]
+
+    try:
+        ranges = entities.manual_ranges(analysis.text, manual)
+    except ValueError:
+        raise HTTPException(400, "Invalid manual entity range")
 
     spans = entities.selected_spans(analysis.entities, ids)
-    masked = entities.mask_selected(analysis.text, analysis.entities, ids)
+    masked = masker.mask(analysis.text, spans, ranges=ranges)
     return AnonymizeOut(
-        anonymizedText=masked, download=_download(analysis, spans, masked),
+        anonymizedText=masked,
+        download=_download(analysis, spans, ranges, masked),
     )
 
 
 def _download(analysis: Analysis, spans: List[Span],
-              masked: str) -> DownloadOut:
+              ranges: List[LineRange], masked: str) -> DownloadOut:
     """The rebuilt PDF, or the masked text when the PDF is not safe."""
     name = Path(analysis.filename).stem or "document"
-    pdf = _rebuild_pdf(analysis, spans)
+    pdf = _rebuild_pdf(analysis, spans, ranges)
     if pdf is not None:
         return DownloadOut(
             name=f"{name}-anonymized.pdf", mediaType="application/pdf",
@@ -158,12 +182,13 @@ def _download(analysis: Analysis, spans: List[Span],
     )
 
 
-def _rebuild_pdf(analysis: Analysis, spans: List[Span]) -> Optional[bytes]:
+def _rebuild_pdf(analysis: Analysis, spans: List[Span],
+                 ranges: List[LineRange]) -> Optional[bytes]:
     if not analysis.pdf:
         return None
     try:
         pdf, unmatched = pdf_reconstructor.reconstruct_pdf_with_report(
-            analysis.pdf, spans,
+            analysis.pdf, spans, ranges=ranges,
         )
     except Exception:
         # e.g. "manual review required": redacting would touch public text

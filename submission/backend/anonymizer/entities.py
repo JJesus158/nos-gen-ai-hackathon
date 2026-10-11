@@ -3,14 +3,22 @@
 One entity per occurrence, with UTF-16 offsets into the whole text (lines
 joined by "\\n"), non-overlapping, in document order. Selecting entities
 and masking them again goes through mask(), so the preview, the download
-and submission.txt are produced by the same code.
+and submission.txt are produced by the same code. Occurrences the user
+marks by hand come back with offsets of the same kind and are masked in
+that same mask() call, exactly where they are.
 """
 
+from bisect import bisect_left, bisect_right
 from dataclasses import dataclass
-from typing import Dict, Iterable, List, Sequence
+from typing import Dict, Iterable, List, Optional, Sequence, Tuple
 
 from anonymizer import masker
-from anonymizer.spans import Span
+from anonymizer.spans import Category, Span
+
+# An occurrence marked by hand: (start, end, type), UTF-16 offsets into the
+# whole text like an Entity; type is a category code or one the user made
+# up ("custom:<name>").
+ManualEntity = Tuple[int, int, str]
 
 
 @dataclass(frozen=True)
@@ -71,13 +79,82 @@ def selected_spans(found: Iterable[Entity],
 
 
 def mask_selected(text: str, found: Iterable[Entity],
-                  selected_ids: Iterable[str]) -> str:
-    """mask() with only the selected entities.
+                  selected_ids: Iterable[str],
+                  manual: Sequence[ManualEntity] = ()) -> str:
+    """mask() with only the selected entities, plus the manual ones.
 
     Masking is span based, so identical values on the same line are
-    masked together even if only one of them is selected.
+    masked together even if only one of them is selected. A manual
+    occurrence is masked only where it is (see manual_ranges()).
     """
-    return masker.mask(text, selected_spans(found, selected_ids))
+    return masker.mask(
+        text, selected_spans(found, selected_ids),
+        ranges=manual_ranges(text, manual),
+    )
+
+
+def manual_ranges(text: str,
+                  manual: Sequence[ManualEntity]) -> List[masker.LineRange]:
+    """The ranges mask() takes for occurrences marked by hand.
+
+    Every word such a range touches is masked, at that position only, so
+    the same value elsewhere stays visible. A taxonomy code keeps its
+    Category; a category the user made up has none. Overlapping ranges
+    are merged first, since masking is their union, so repeating a range
+    costs nothing more. ValueError if a range is not valid (see
+    code_points()).
+    """
+    if not manual:
+        return []
+    utf16 = _utf16_offsets(text)
+    ranges = sorted(
+        (_code_points(utf16, start, end) + (_category(kind),)
+         for start, end, kind in manual),
+        key=lambda found: found[:2],
+    )
+    merged: List[Tuple[int, int, Optional[Category]]] = []
+    for start, end, category in ranges:
+        if merged and start < merged[-1][1]:
+            first, last, kept = merged[-1]
+            merged[-1] = (first, max(last, end), kept)
+        else:
+            merged.append((start, end, category))
+    return line_ranges(text, merged)
+
+
+def code_points(text: str, start: int, end: int) -> Tuple[int, int]:
+    """A UTF-16 range of the text, as JavaScript counts, in code points.
+
+    ValueError unless 0 <= start < end <= the UTF-16 length of the text
+    and neither offset falls inside a surrogate pair (half an emoji).
+    """
+    return _code_points(_utf16_offsets(text), start, end)
+
+
+def line_ranges(
+        text: str, ranges: Iterable[Tuple[int, int, Optional[Category]]],
+) -> List[masker.LineRange]:
+    """Code-point ranges of the whole text as the per-line ones of mask().
+
+    A range running over line breaks gives one range per line it
+    touches; a "\\n" is never part of one, so line breaks stay as they
+    are. ValueError if a range is empty or not inside the text.
+    """
+    lines = text.split("\n")
+    starts = _line_starts(lines)
+    result: List[masker.LineRange] = []
+    for start, end, category in ranges:
+        if not 0 <= start < end <= len(text):
+            raise ValueError(f"range {start}-{end} not in the text")
+        index = bisect_right(starts, start) - 1
+        while index < len(lines) and starts[index] < end:
+            at = starts[index]
+            first = max(start, at) - at
+            last = min(end, at + len(lines[index])) - at
+            if first < last:
+                result.append((index, first, last, category))
+            index += 1
+    return result
 
 
 def _line_starts(lines: Sequence[str]) -> List[int]:
@@ -96,6 +173,24 @@ def _utf16_offsets(text: str) -> List[int]:
         units += 2 if ord(char) > 0xFFFF else 1
     offsets.append(units)
     return offsets
+
+
+def _code_points(utf16: List[int], start: int, end: int) -> Tuple[int, int]:
+    """code_points() with the UTF-16 offsets of the text already known."""
+    if not 0 <= start < end <= utf16[-1]:
+        raise ValueError(f"range {start}-{end} not in the text")
+    first, last = bisect_left(utf16, start), bisect_left(utf16, end)
+    if utf16[first] != start or utf16[last] != end:
+        raise ValueError(f"range {start}-{end} splits a surrogate pair")
+    return first, last
+
+
+def _category(kind: str) -> Optional[Category]:
+    """The Category of a taxonomy code; None for one the user made up."""
+    try:
+        return Category(kind)
+    except ValueError:
+        return None
 
 
 def _replacement(line: str, start: int, end: int) -> str:

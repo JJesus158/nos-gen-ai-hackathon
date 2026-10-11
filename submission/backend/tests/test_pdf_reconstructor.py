@@ -550,6 +550,34 @@ def test_redaction_is_transparent_over_coloured_cells():
         assert pixel == (191, 216, 255)
 
 
+def test_hand_marked_range_is_redacted_only_where_it_is():
+    """A range marked by hand is redacted at its position, not searched."""
+
+    line = "Matricula: AA-12-BB e AA-12-BB"
+    with pymupdf.open() as document:
+        page = document.new_page()
+        page.insert_text((72, 72), "Nome: Ana Correia")
+        page.insert_text((72, 100), line)
+        original_pdf = document.tobytes()
+    start = line.rindex("AA-12-BB")
+
+    result_pdf, unmatched = reconstruct_pdf_with_report(
+        original_pdf, [], ranges=[(1, start, start + 8, None)],
+    )
+
+    assert unmatched == []
+    words = sorted(extract_text_from_bytes(result_pdf).split())
+    assert words == sorted("Nome: Ana Correia Matricula: AA-12-BB e *".split())
+
+    # By position: the first plate is still there, the second is gone.
+    with pymupdf.open(stream=original_pdf, filetype="pdf") as document:
+        first, second = document[0].search_for("AA-12-BB")
+    with pymupdf.open(stream=result_pdf, filetype="pdf") as document:
+        page = document[0]
+        assert page.get_textbox(first).strip() == "AA-12-BB"
+        assert "AA-12-BB" not in page.get_textbox(second)
+
+
 def test_challenge_pdf_rebuilds_with_the_extracted_text():
     """Word PDFs end every line with a space that extraction drops (#14):
     the rebuild must still line up with the extracted text."""

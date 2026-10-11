@@ -23,12 +23,15 @@ export interface DocumentEntity {
   readonly type: string;
   readonly replacement: string;
   readonly reason?: string;
+  /** Where the occurrence is in the PDF, from the API; occurrences marked by hand have none. */
   readonly boxes?: readonly PdfEntityBox[];
   readonly page?: number;
   readonly x?: number;
   readonly y?: number;
   readonly width?: number;
   readonly height?: number;
+  /** Frontend only: marked by the user on the review screen, never part of a processor analysis. */
+  readonly manual?: boolean;
 }
 
 export interface AnalyzedDocument {

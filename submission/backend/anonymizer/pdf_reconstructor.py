@@ -10,7 +10,7 @@ from typing import Dict, List, Optional, Sequence, Tuple
 import pymupdf
 
 from anonymizer.extract import extract_text_from_bytes, page_textpage
-from anonymizer.masker import mask_with_positions, runs
+from anonymizer.masker import LineRange, mask_with_positions, runs
 from anonymizer.spans import Span
 
 OCR_PADDING = 1.5  # points around OCR word boxes
@@ -243,12 +243,15 @@ def _save_pdf(document: pymupdf.Document) -> bytes:
 def reconstruct_pdf(
     pdf_data: bytes,
     spans: Sequence[Span],
+    *,
+    ranges: Sequence[LineRange] = (),
 ) -> bytes:
     """Reconstruct a PDF and return its anonymized bytes."""
 
     pdf_bytes, _ = reconstruct_pdf_with_report(
         pdf_data,
         spans,
+        ranges=ranges,
     )
 
     return pdf_bytes
@@ -257,15 +260,21 @@ def reconstruct_pdf(
 def reconstruct_pdf_with_report(
     pdf_data: bytes,
     spans: Sequence[Span],
+    *,
+    ranges: Sequence[LineRange] = (),
 ) -> Tuple[bytes, List[Span]]:
     """Redact matched words and report unmatched sensitive spans.
 
+    ranges are the ranges marked by hand, as mask_with_positions()
+    takes them, in the text extract_text_from_bytes() gives for this
+    PDF: they are redacted exactly where they are, never searched for,
+    so they are never unmatched.
     Raise ValueError for ambiguous geometry that needs manual review.
     This does not audit sensitive data in annotations or attachments.
     """
 
     original_text = extract_text_from_bytes(pdf_data)
-    result = mask_with_positions(original_text, spans)
+    result = mask_with_positions(original_text, spans, ranges=ranges)
 
     # A document without sensitive words is a valid case.
     # Still clear its metadata before exporting.

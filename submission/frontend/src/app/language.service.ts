@@ -88,6 +88,26 @@ const en = {
   download: 'Download document',
   processAnother: 'Select another document',
   bytes: 'bytes',
+  manualHint: 'Select text in the document to mark data that was not identified.',
+  previewViewLabel: 'Preview',
+  pdfView: 'PDF',
+  textView: 'Text',
+  markAsPersonalData: 'Mark as personal data',
+  category: 'Category',
+  newCategory: 'New category…',
+  newCategoryName: 'Category name',
+  markOtherOccurrence: 'Also mark the other occurrence',
+  markOtherOccurrences: 'Also mark the other {count} occurrences',
+  add: 'Add',
+  cancel: 'Cancel',
+  close: 'Close',
+  manualOverlap:
+    'This text overlaps data that is already identified. Select only the missing part.',
+  manualDeselected: 'This text is already in the list, but it is not selected for anonymization.',
+  selectExisting: 'Select it',
+  manualBadge: 'Added by you',
+  removeManual: 'Remove',
+  manualAdded: 'Added to {category}',
 };
 const pt: typeof en = {
   title: 'DataVeil',
@@ -175,7 +195,30 @@ const pt: typeof en = {
   download: 'Descarregar documento',
   processAnother: 'Selecionar outro documento',
   bytes: 'bytes',
+  manualHint: 'Selecione texto para marcar dados não identificados.',
+  previewViewLabel: 'Pré-visualização',
+  pdfView: 'PDF',
+  textView: 'Texto',
+  markAsPersonalData: 'Marcar como dado pessoal',
+  category: 'Categoria',
+  newCategory: 'Nova categoria…',
+  newCategoryName: 'Nome da categoria',
+  markOtherOccurrence: 'Marcar também a outra ocorrência',
+  markOtherOccurrences: 'Marcar também as outras {count} ocorrências',
+  add: 'Adicionar',
+  cancel: 'Cancelar',
+  close: 'Fechar',
+  manualOverlap:
+    'Este texto sobrepõe-se a dados já identificados. Selecione apenas a parte em falta.',
+  manualDeselected: 'Este texto já está na lista, mas não está selecionado para anonimizar.',
+  selectExisting: 'Selecionar',
+  manualBadge: 'Adicionado por si',
+  removeManual: 'Remover',
+  manualAdded: 'Adicionado a {category}',
 };
+
+/** Every translation, e.g. to recognise a built-in category label typed in either language. */
+export const TRANSLATIONS: readonly (typeof en)[] = [en, pt];
 
 @Injectable({ providedIn: 'root' })
 export class LanguageService {

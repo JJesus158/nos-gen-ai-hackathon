@@ -29,6 +29,8 @@
   margin-top: 8px;
 }
 .pdf-controls button {
+  display: grid;
+  place-items: center;
   min-width: 32px;
   padding: 3px 8px;
   border: 1px solid var(--line-bright);
@@ -36,8 +38,23 @@
   color: var(--ink);
   background: var(--surface);
   font: inherit;
+  line-height: 1;
+  text-align: center;
   cursor: pointer;
 }
+.pdf-controls button:first-child,
+.pdf-controls button:nth-child(3) {
+  font-size: 0;
+}
+.pdf-controls button:first-child::before,
+.pdf-controls button:nth-child(3)::before {
+  display: block;
+  color: currentColor;
+  font-size: 1rem;
+  line-height: 1;
+}
+.pdf-controls button:first-child::before { content: '−'; }
+.pdf-controls button:nth-child(3)::before { content: '+'; }
 .pdf-controls button:nth-child(2) {
   min-width: 48px;
 }

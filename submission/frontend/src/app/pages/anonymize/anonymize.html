@@ -189,30 +189,39 @@
           </h2>
           @if (pdfMappingAvailable() && !pdfPreviewFailed() && highlightedPdf()) {
             <div class="analysis-pdf-controls" role="toolbar" aria-label="PDF zoom controls">
-              <button
-                type="button"
-                (click)="zoomPreviewOut()"
-                [disabled]="previewZoom() <= 0.5"
-                aria-label="Zoom out"
-              >
-                −
-              </button>
-              <button type="button" (click)="resetPreviewZoom()" aria-label="Reset zoom">
-                {{ (previewZoom() * 100).toFixed(0) }}%
-              </button>
-              <button
-                type="button"
-                (click)="zoomPreviewIn()"
-                [disabled]="previewZoom() >= 2.5"
-                aria-label="Zoom in"
-              >
-                +
-              </button>
+              <button type="button" (click)="zoomPreviewOut()" [disabled]="previewZoom() <= 0.5" aria-label="Zoom out">−</button>
+              <button type="button" (click)="resetPreviewZoom()" aria-label="Reset zoom">{{ (previewZoom() * 100).toFixed(0) }}%</button>
+              <button type="button" (click)="zoomPreviewIn()" [disabled]="previewZoom() >= 2.5" aria-label="Zoom in">+</button>
               <button type="button" (click)="fitPreviewWidth()" aria-label="Fit PDF to width">
-                ↔
+                <svg
+                  width="12"
+                  height="12"
+                  [attr.viewBox]="'0 0 ' + fitWidthIcon.icon[0] + ' ' + fitWidthIcon.icon[1]"
+                  fill="currentColor"
+                  aria-hidden="true"
+                  focusable="false"
+                >
+                  <path [attr.d]="fitWidthIcon.icon[4]" />
+                </svg>
               </button>
               <button type="button" (click)="fitPreviewHeight()" aria-label="Fit PDF to height">
-                ↕
+                <svg
+                  class="fit-height-icon"
+                  width="12"
+                  height="12"
+                  viewBox="0 0 12 12"
+                  fill="none"
+                  aria-hidden="true"
+                  focusable="false"
+                >
+                  <path
+                    d="M6 1v10M3.5 3.5 6 1l2.5 2.5M3.5 8.5 6 11l2.5-2.5"
+                    stroke="currentColor"
+                    stroke-width="1.15"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  />
+                </svg>
               </button>
             </div>
           }
@@ -245,6 +254,7 @@
               [fullSize]="true"
               [showControls]="false"
               [zoomLevel]="previewZoom()"
+              [fit]="previewFit()"
             />
           } @else {
             <p role="status">{{ language.text().previewLoading }}</p>

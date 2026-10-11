@@ -12,6 +12,7 @@ import {
 import {
   faArrowLeft,
   faArrowRight,
+  faArrowsLeftRight,
   faFileArrowUp,
   faShieldHalved,
   faXmark,
@@ -44,9 +45,11 @@ export class Anonymize {
   protected readonly nextIcon = faArrowRight;
   protected readonly anonymizationIcon = faShieldHalved;
   protected readonly backIcon = faArrowLeft;
+  protected readonly fitWidthIcon = faArrowsLeftRight;
   protected readonly categoryDetails = categoryDetails;
   protected readonly dragging = signal(false);
   protected readonly previewZoom = signal(1);
+  protected readonly previewFit = signal<'width' | 'height'>('width');
   protected readonly pdfMappingAvailable = computed(() => {
     const analysis = this.documents.analysis();
     return (
@@ -125,23 +128,28 @@ export class Anonymize {
   }
 
   protected zoomPreviewIn(): void {
+    this.previewFit.set('width');
     this.previewZoom.update((value) => Math.min(2.5, value + 0.25));
   }
 
   protected zoomPreviewOut(): void {
+    this.previewFit.set('width');
     this.previewZoom.update((value) => Math.max(0.5, value - 0.25));
   }
 
   protected resetPreviewZoom(): void {
+    this.previewFit.set('width');
     this.previewZoom.set(1);
   }
 
   protected fitPreviewWidth(): void {
+    this.previewFit.set('width');
     this.previewZoom.set(1);
   }
 
   protected fitPreviewHeight(): void {
-    this.previewZoom.set(0.5);
+    this.previewFit.set('height');
+    this.previewZoom.set(1);
   }
 
   private focusHeading(): void {

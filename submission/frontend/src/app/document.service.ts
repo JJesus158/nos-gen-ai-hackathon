@@ -133,13 +133,13 @@ export class DocumentService {
     this.analyzed.set(null);
     this.processed.set(null);
     this.selection.set([]);
-    this.currentStage.set('analysis');
     try {
       const analysis = await this.processor.analyze(file, controller.signal);
       if (request !== this.request || controller.signal.aborted) return false;
       validateAnalysis(analysis);
       this.analyzed.set(analysis);
       this.selection.set(analysis.entities.map((entity) => entity.id));
+      this.currentStage.set('analysis');
       return true;
     } catch {
       if (request === this.request && !controller.signal.aborted) this.failed.set(true);

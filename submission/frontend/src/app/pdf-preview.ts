@@ -38,6 +38,7 @@ export class PdfPreview {
   readonly highlights = input<readonly DocumentEntity[]>([]);
   readonly sourceText = input('');
   readonly zoomLevel = input(1);
+  readonly fit = input<'width' | 'height'>('width');
   readonly showControls = input(true);
   readonly maskMode = input<'highlight' | 'blur'>('highlight');
   protected readonly zoom = signal(1);
@@ -47,6 +48,7 @@ export class PdfPreview {
   protected readonly rendered = signal(false);
   private readonly document = inject(DOCUMENT);
   private readonly pages = viewChild<ElementRef<HTMLDivElement>>('pages');
+  private readonly containerSize = signal({ width: 0, height: 0 });
   private readonly renderedPages = signal<readonly RenderedPage[]>([]);
 
   constructor() {
@@ -55,11 +57,28 @@ export class PdfPreview {
       const container = this.pages()?.nativeElement;
       const fullSize = this.fullSize();
       const zoom = this.zoomLevel() * this.zoom();
+      const fit = this.fit();
+      const measuredSize = this.containerSize();
       if (!container || !file) return;
 
       let cancelled = false;
       let loading: PDFDocumentLoadingTask | undefined;
       let rendering: RenderTask | undefined;
+      let resizeFrame: number | undefined;
+      const scrollViewport = container.closest<HTMLElement>('.paper-scroll');
+      const resizeTarget = scrollViewport ?? container.parentElement;
+      const resizeObserver = fullSize && resizeTarget && typeof ResizeObserver !== 'undefined'
+        ? new ResizeObserver(([entry]) => {
+          if (!entry) return;
+          const width = Math.max(1, Math.round(resizeTarget.clientWidth || entry.contentRect.width));
+          const height = Math.max(1, Math.round(resizeTarget.clientHeight || entry.contentRect.height));
+          const current = this.containerSize();
+          if (width === current.width && height === current.height) return;
+          if (resizeFrame !== undefined) cancelAnimationFrame(resizeFrame);
+          resizeFrame = requestAnimationFrame(() => this.containerSize.set({ width, height }));
+        })
+        : undefined;
+      if (resizeTarget) resizeObserver?.observe(resizeTarget);
       const release = () => {
         const task = loading;
         loading = undefined;
@@ -68,6 +87,8 @@ export class PdfPreview {
       onCleanup(() => {
         cancelled = true;
         rendering?.cancel();
+        resizeObserver?.disconnect();
+        if (resizeFrame !== undefined) cancelAnimationFrame(resizeFrame);
         release();
       });
       this.state.set('loading');
@@ -95,13 +116,18 @@ export class PdfPreview {
             const page = await document.getPage(number);
             if (cancelled) return;
             const original = page.getViewport({ scale: 1 });
-            const scrollViewport = container.closest<HTMLElement>('.paper-scroll');
             const availableWidth = Math.max(
               1,
-              scrollViewport?.clientWidth ?? container.parentElement?.clientWidth ?? 900,
+              measuredSize.width || scrollViewport?.clientWidth || container.parentElement?.clientWidth || 900,
+            );
+            const availableHeight = Math.max(
+              1,
+              measuredSize.height || scrollViewport?.clientHeight || container.parentElement?.clientHeight || 700,
             );
             const scale = fullSize
-              ? (availableWidth / original.width) * zoom
+              ? ((fit === 'height'
+                ? availableHeight / original.height
+                : availableWidth / original.width) * zoom)
               : Math.min(80 / original.width, 100 / original.height);
             const viewport = page.getViewport({ scale });
             const canvas = this.document.createElement('canvas');

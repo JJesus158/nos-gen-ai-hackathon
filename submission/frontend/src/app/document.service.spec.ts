@@ -92,7 +92,7 @@ describe('Document selection workflow', () => {
     documents.select(file);
     const request = documents.analyze();
     expect(documents.processing()).toBeTrue();
-    expect(documents.stage()).toBe('analysis');
+    expect(documents.stage()).toBe('document');
     expect(await documents.analyze()).toBeFalse();
     expect(await documents.anonymize()).toBeFalse();
     expect(processor.analyze).toHaveBeenCalledTimes(1);
@@ -178,7 +178,7 @@ describe('Document selection workflow', () => {
     documents.select(file);
     expect(await documents.analyze()).toBeFalse();
     expect(documents.error()).toBeTrue();
-    expect(documents.stage()).toBe('analysis');
+    expect(documents.stage()).toBe('document');
     expect(documents.file()).toBe(file);
     expect(await documents.analyze()).toBeTrue();
     expect(documents.error()).toBeFalse();

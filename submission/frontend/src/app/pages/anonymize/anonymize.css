@@ -139,23 +139,41 @@
   line-height: 1.25;
 }
 .preview-heading {
-  position: relative;
+  box-sizing: border-box;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) max-content minmax(0, 1fr);
+  align-items: center;
+  align-content: center;
+  gap: 8px;
+  height: 36px;
+  min-height: 36px;
+  padding-top: 5px;
+  padding-bottom: 5px;
+}
+.preview-heading h2 {
+  grid-column: 1;
+  grid-row: 1;
+  min-width: 0;
 }
 .preview-heading .preview-file-name {
-  margin-left: auto;
+  grid-column: 3;
+  grid-row: 1;
+  justify-self: end;
+  min-width: 0;
+  margin-left: 0;
 }
 .analysis-pdf-controls {
-  position: absolute;
-  left: 50%;
+  position: static;
   display: flex;
+  grid-column: 2;
+  grid-row: 1;
   align-items: center;
   gap: 4px;
-  transform: translateX(-50%);
+  margin: 0;
 }
 .analysis-pdf-controls button {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
+  display: grid;
+  place-items: center;
   width: 24px;
   min-width: 24px;
   height: 24px;
@@ -167,6 +185,9 @@
   color: var(--ink);
   background: var(--surface);
   font: inherit;
+  font-size: 0.78rem;
+  line-height: 1;
+  text-align: center;
   cursor: pointer;
 }
 .analysis-pdf-controls button:nth-child(2) {
@@ -177,6 +198,70 @@
 .analysis-pdf-controls button:disabled {
   cursor: default;
   opacity: 0.45;
+}
+.analysis-pdf-controls button:first-child,
+.analysis-pdf-controls button:nth-child(3) {
+  font-size: 0;
+}
+.analysis-pdf-controls button:first-child::before,
+.analysis-pdf-controls button:nth-child(3)::before {
+  display: block;
+  color: currentColor;
+  font-size: 1rem;
+  line-height: 1;
+}
+.analysis-pdf-controls button:first-child::before { content: '−'; }
+.analysis-pdf-controls button:nth-child(3)::before { content: '+'; }
+
+@container (max-width: 700px) {
+  .preview-heading {
+    align-items: center;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) max-content minmax(0, 1fr);
+    align-content: center;
+    gap: 8px;
+    height: 36px;
+    min-height: 36px;
+    padding: 5px 12px;
+  }
+  .preview-heading h2 {
+    grid-column: 1;
+    grid-row: 1;
+    min-width: 0;
+  }
+  .analysis-pdf-controls {
+    position: static;
+    grid-column: 2;
+    grid-row: 1;
+    margin: 0;
+    transform: none;
+  }
+  .preview-heading .preview-file-name {
+    grid-column: 3;
+    grid-row: 1;
+    justify-self: end;
+    max-width: 100%;
+    margin-left: 0;
+  }
+}
+@container (max-width: 650px) {
+  .preview-heading {
+    grid-template-columns: minmax(0, 1fr) auto;
+    row-gap: 4px;
+    height: 60px;
+    min-height: 60px;
+    padding: 5px 12px 7px;
+  }
+  .analysis-pdf-controls {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    justify-self: center;
+  }
+  .preview-heading .preview-file-name {
+    grid-column: 2;
+    grid-row: 1;
+    max-width: 45cqw;
+  }
 }
 .selected-file {
   display: flex;
@@ -326,14 +411,61 @@
   color: var(--accent-text);
 }
 @media (max-width: 575px) {
-  .analysis-grid {
-    grid-template-columns: minmax(0, 1fr);
+  .workspace-page {
+    gap: 14px;
   }
+  .analysis-grid {
+    gap: 14px;
+  }
+  .selection-page {
+    flex: 1 0 auto;
+    min-height: 0;
+    justify-content: center;
+  }
+  .upload-section {
+    flex: 0 0 auto;
+    margin-top: 0;
+  }
+  .home-intro {
+    padding-bottom: 20px;
+  }
+  .upload-panel {
+    min-height: 0;
+  }
+  .upload-actions {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .upload-error {
+    min-height: 1.6rem;
+  }
+  .upload-actions .btn {
+    align-self: flex-end;
+  }
+  .workspace-page > .page-actions {
+    align-items: center;
+    flex-direction: row;
+    gap: 12px;
+  }
+  .workspace-page > .page-actions > .page-action-group {
+    flex: 0 0 auto;
+  }
+  .workspace-page > .page-actions > .btn {
+    flex: 0 1 auto;
+    min-width: 0;
+  }
+  .workspace-page > .page-actions > .btn.btn-primary {
+    padding: 7px 10px;
+    font-size: 0.74rem;
+    gap: 6px;
+  }
+  .analysis-grid { grid-template-columns: minmax(0, 1fr); }
   .upload-panel {
     padding: 12px;
   }
   .upload-body.has-file {
-    gap: 8px;
+    grid-template-columns: 1fr;
   }
   .drop-zone {
     padding: 12px 8px;

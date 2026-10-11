@@ -435,12 +435,15 @@ mark {
   padding: 0;
   overflow: hidden;
 }
+.document-workspace .preview-panel {
+  container-type: inline-size;
+}
 .paper-scroll {
   flex: 1;
   min-height: 0;
   overflow-x: auto;
   overflow-y: auto;
-  scrollbar-gutter: auto;
+  scrollbar-gutter: stable;
   scrollbar-color: var(--line-bright) var(--well);
   scrollbar-width: thin;
 }
@@ -494,7 +497,15 @@ mark {
     padding-right: 16px;
   }
   .page-actions {
+    align-items: stretch;
+    flex-direction: column;
     gap: 8px;
+  }
+  .page-action-group {
+    justify-content: stretch;
+  }
+  .page-action-group .btn {
+    flex: 1;
   }
   .page-actions .btn {
     flex: 1;
@@ -512,14 +523,18 @@ mark {
     align-items: flex-start;
   }
   .workspace-page {
+    flex: 0 0 auto;
+    min-height: auto;
     gap: 8px;
     padding: 12px 0 8px;
   }
   .document-workspace {
+    flex: 0 0 auto;
+    min-height: auto;
     grid-template-columns: minmax(0, 1fr);
     grid-auto-rows: max-content;
-    gap: 12px;
-    overflow: auto;
+    gap: 8px;
+    overflow: visible;
   }
   .document-workspace .paper-scroll,
   .document-workspace .entity-scroll {

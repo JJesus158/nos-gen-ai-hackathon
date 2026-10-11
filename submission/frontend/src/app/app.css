@@ -26,6 +26,7 @@
   display: flex;
   align-items: center;
   gap: 16px;
+  min-width: 0;
   flex-shrink: 0;
 }
 .theme-control {
@@ -111,6 +112,7 @@
   gap: 9px;
   position: relative;
   width: 210px;
+  min-width: 0;
   height: 34px;
   padding: 5px 28px 5px 10px;
   border: 1px solid var(--line-bright);
@@ -127,6 +129,12 @@
 .language-select:hover {
   border-color: var(--accent-text);
 }
+.language-select > span:nth-child(2) {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .language-control {
   position: relative;
 }
@@ -141,18 +149,20 @@
   position: absolute;
   display: grid;
   place-items: center;
+  top: 50%;
   right: 10px;
   width: 12px;
   height: 12px;
   color: var(--muted);
   font-size: 0;
+  transform: translateY(-50%);
 }
 .language-chevron::before {
   width: 6px;
   height: 6px;
   border-right: 1.5px solid currentColor;
   border-bottom: 1.5px solid currentColor;
-  transform: translateY(-2px) rotate(45deg);
+  transform: rotate(45deg);
   content: '';
 }
 .language-menu {
@@ -222,6 +232,19 @@ main {
   flex: 1;
 }
 @media (max-width: 575px) {
+  :host {
+    height: auto;
+    min-height: 100dvh;
+  }
+  .site-header {
+    position: sticky;
+    z-index: 10;
+    top: 0;
+  }
+  main {
+    flex: 1 0 auto;
+    min-height: auto;
+  }
   .navbar {
     gap: 10px;
     min-height: 52px;
@@ -231,17 +254,52 @@ main {
   }
   .language-select {
     width: 175px;
+    max-width: 100%;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
   }
   .site-footer {
+    position: static;
     font-size: 0.68rem;
   }
   .footer-content {
     display: flex;
-    align-items: flex-start;
+    align-items: center;
     flex-direction: column;
-    gap: 4px;
+    gap: 0;
+    text-align: center;
+  }
+  .site-footer {
+    line-height: 1.4;
   }
   .site-footer p + p {
     margin-top: 0;
+  }
+}
+@media (max-width: 400px) {
+  .navbar {
+    gap: 8px;
+  }
+  .brand {
+    font-size: 1.05rem;
+  }
+  .header-preferences {
+    gap: 8px;
+  }
+  .theme-toggle {
+    width: 58px;
+  }
+  .theme-toggle.is-dark .theme-toggle-thumb {
+    transform: translateX(24px);
+  }
+  .language-select {
+    width: 34px;
+    justify-content: center;
+    padding: 5px;
+  }
+  .language-select > span:nth-child(2),
+  .language-select .language-chevron {
+    display: none;
   }
 }

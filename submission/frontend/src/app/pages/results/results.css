@@ -7,6 +7,9 @@
 .comparison .preview-panel .panel-heading {
   justify-content: space-between;
 }
+.workspace-page > .document-workspace.comparison {
+  gap: 16px;
+}
 .comparison .pdf-result-preview,
 .comparison .pdf-result-preview app-pdf-preview {
   display: block;
@@ -59,7 +62,33 @@
   user-select: none;
 }
 @media (max-width: 575px) {
-  .comparison {
+  .workspace-page {
+    gap: 14px;
+  }
+  .workspace-page > .document-workspace.comparison {
     grid-template-columns: minmax(0, 1fr);
+    row-gap: 14px !important;
+    column-gap: 0;
+  }
+  .page-actions {
+    align-items: center;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    gap: 12px;
+  }
+  .page-actions .page-action-group {
+    flex: 0 0 auto;
+  }
+  .page-actions > .page-action-group:last-child {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    flex-basis: auto;
+    justify-content: flex-start;
+    gap: 8px;
+  }
+  .page-actions .page-action-group .btn {
+    flex: 0 0 auto;
+    width: auto;
   }
 }

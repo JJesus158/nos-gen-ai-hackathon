@@ -16,7 +16,14 @@
           <h2 id="original-title">{{ language.text().original }}</h2>
           <span class="preview-file-name">{{ documents.file()?.name }}</span>
         </div>
-        <div class="paper-scroll" role="region" aria-labelledby="original-title" tabindex="0">
+        <div
+          #originalScroll
+          class="paper-scroll"
+          role="region"
+          aria-labelledby="original-title"
+          tabindex="0"
+          (scroll)="syncScroll('original')"
+        >
           @if (originalPreviewFailed() || !documents.file()) {
             <!-- The PDF cannot be rendered: the analyzed text, with the protected data marked. -->
             <div class="paper">
@@ -46,11 +53,26 @@
       </section>
       <section class="panel preview-panel protected-panel">
         <div class="panel-heading">
-          <h2 id="anonymized-title">{{ language.text().anonymized }}</h2>
+          <h2 id="anonymized-title">
+            {{ view() === 'summary' ? language.text().summaryTitle : language.text().anonymized }}
+          </h2>
           <span class="preview-file-name">{{ result.download.name }}</span>
         </div>
-        <div class="paper-scroll" role="region" aria-labelledby="anonymized-title" tabindex="0">
-          @if (!resultIsPdf() || resultPreviewFailed()) {
+        <div
+          #protectedScroll
+          class="paper-scroll"
+          role="region"
+          aria-labelledby="anonymized-title"
+          tabindex="0"
+          (scroll)="syncScroll('protected')"
+        >
+          @if (view() === 'summary' && documents.summary(); as summary) {
+            <div class="paper summary-paper">
+              <span class="paper-brand">{{ language.text().summaryNote }}</span>
+              <h3>{{ language.text().summaryTitle }}</h3>
+              <div class="document-text">{{ summary }}</div>
+            </div>
+          } @else if (!resultIsPdf() || resultPreviewFailed()) {
             <!-- A text download, or a PDF that cannot be rendered: the anonymized text itself. -->
             <div class="paper">
               <div class="document-text">{{ result.anonymizedText }}</div>
@@ -79,21 +101,56 @@
             <button
               type="button"
               class="mask-option"
-              [class.is-selected]="maskMode() === 'asterisk'"
-              [attr.aria-pressed]="maskMode() === 'asterisk'"
-              (click)="maskMode.set('asterisk')"
+              [class.is-selected]="view() === 'masked' && maskMode() === 'asterisk'"
+              [attr.aria-pressed]="view() === 'masked' && maskMode() === 'asterisk'"
+              (click)="maskMode.set('asterisk'); view.set('masked')"
             >
               {{ language.text().asterisks }}
             </button>
             <button
               type="button"
               class="mask-option"
-              [class.is-selected]="maskMode() === 'blur'"
-              [attr.aria-pressed]="maskMode() === 'blur'"
-              (click)="maskMode.set('blur')"
+              [class.is-selected]="view() === 'masked' && maskMode() === 'blur'"
+              [attr.aria-pressed]="view() === 'masked' && maskMode() === 'blur'"
+              (click)="maskMode.set('blur'); view.set('masked')"
             >
               {{ language.text().blur }}
             </button>
+            @if (documents.summary() === null) {
+              <button
+                type="button"
+                class="btn summarize-button"
+                [disabled]="documents.summarizing()"
+                (click)="summarize()"
+              >
+                @if (documents.summarizing()) {
+                  <span class="spinner-border spinner-border-sm" aria-hidden="true"></span>
+                  {{ language.text().summarizing }}
+                } @else {
+                  {{ language.text().summarize }}
+                  <svg
+                    width="14"
+                    height="14"
+                    [attr.viewBox]="'0 0 ' + summarizeIcon.icon[0] + ' ' + summarizeIcon.icon[1]"
+                    fill="currentColor"
+                    aria-hidden="true"
+                    focusable="false"
+                  >
+                    <path [attr.d]="summarizeIcon.icon[4]" />
+                  </svg>
+                }
+              </button>
+            } @else {
+              <button
+                type="button"
+                class="mask-option"
+                [class.is-selected]="view() === 'summary'"
+                [attr.aria-pressed]="view() === 'summary'"
+                (click)="view.set('summary')"
+              >
+                {{ language.text().summaryView }}
+              </button>
+            }
           </div>
         }
       </section>
@@ -114,7 +171,7 @@
           {{ language.text().back }}
         </button>
       </div>
-      <div class="page-action-group">
+      <div class="page-action-group results-actions">
         <button type="button" class="btn btn-outline-secondary" (click)="restart.emit()">
           {{ language.text().chooseAnother }}
         </button>

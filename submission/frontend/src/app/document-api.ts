@@ -10,6 +10,9 @@ export interface DocumentAnonymizationApiResponse {
     readonly contentBase64: string;
   };
 }
+export interface DocumentSummaryApiResponse {
+  readonly summary: string;
+}
 
 /** Backend analysis and file generation are separate so the user can review every occurrence. */
 export function createApiProcessor(endpoint: string): DocumentProcessor {
@@ -65,6 +68,17 @@ export function createApiProcessor(endpoint: string): DocumentProcessor {
         },
         source: 'api',
       };
+    },
+    async summarize(analysis, selectedEntityIds, language, signal): Promise<string> {
+      const value = (await request(`${base}/${encodeURIComponent(analysis.id)}/summarize`, {
+        headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+        body: JSON.stringify({ selectedEntityIds, language }),
+        signal,
+      })) as DocumentSummaryApiResponse;
+      if (!value || typeof value.summary !== 'string' || !value.summary.trim()) {
+        throw new Error('Invalid API summary response');
+      }
+      return value.summary;
     },
   };
 }

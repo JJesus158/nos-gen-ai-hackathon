@@ -14,14 +14,14 @@ pool, so the Gemini call never blocks the event loop.
 import base64
 import logging
 from pathlib import Path
-from typing import List, Optional
+from typing import List, Literal, Optional
 
 from fastapi import FastAPI, File, HTTPException, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
-from anonymizer import detector, entities, extract, pdf_reconstructor
+from anonymizer import detector, entities, extract, masker, pdf_reconstructor, summarizer
 from anonymizer.spans import Span
 from api.frontend import mount_frontend, static_dir
 from api.store import Analysis, AnalysisStore
@@ -66,6 +66,14 @@ class AnalysisOut(BaseModel):
 
 class AnonymizeIn(BaseModel):
     selectedEntityIds: List[str]
+
+
+class SummarizeIn(AnonymizeIn):
+    language: Optional[Literal['pt-PT', 'en']] = None
+
+
+class SummaryOut(BaseModel):
+    summary: str
 
 
 class DownloadOut(BaseModel):
@@ -140,6 +148,26 @@ def anonymize(analysis_id: str, body: AnonymizeIn) -> AnonymizeOut:
     return AnonymizeOut(
         anonymizedText=masked, download=_download(analysis, spans, masked),
     )
+
+
+@app.post('/api/documents/{analysis_id}/summarize', response_model=SummaryOut)
+def summarize_document(analysis_id: str, body: SummarizeIn) -> SummaryOut:
+    analysis = store.get(analysis_id)
+    if analysis is None:
+        raise HTTPException(404, 'Analysis not found or expired')
+    ids = body.selectedEntityIds
+    known = {e.id for e in analysis.entities}
+    if len(set(ids)) != len(ids) or not set(ids) <= known:
+        raise HTTPException(400, 'Unknown or duplicate entity ids')
+    spans = entities.selected_spans(analysis.entities, ids)
+    try:
+        summary = summarizer.summarize(
+            masker.mask_with_positions(analysis.text, spans), body.language,
+        )
+    except Exception:
+        log.exception('summary failed')
+        raise HTTPException(500, 'Summary failed')
+    return SummaryOut(summary=summary)
 
 
 def _download(analysis: Analysis, spans: List[Span],

@@ -9,6 +9,13 @@ import {
 export type DocumentStage = 'document' | 'analysis' | 'anonymization' | 'results';
 export type SelectionState = 'all' | 'some' | 'none';
 
+interface SummaryState {
+  readonly result: ProcessedDocument;
+  readonly text: string | null;
+  readonly pending: boolean;
+  readonly failed: boolean;
+}
+
 export const MIN_ANONYMIZATION_DURATION = 500;
 
 @Injectable({ providedIn: 'root' })
@@ -21,6 +28,7 @@ export class DocumentService {
   private readonly currentStage = signal<DocumentStage>('document');
   private readonly pending = signal(false);
   private readonly failed = signal(false);
+  private readonly summaryState = signal<SummaryState | null>(null);
   private request = 0;
   private controller?: AbortController;
 
@@ -32,6 +40,9 @@ export class DocumentService {
   readonly stage = this.currentStage.asReadonly();
   readonly processing = this.pending.asReadonly();
   readonly error = this.failed.asReadonly();
+  readonly summary = computed(() => this.summaryOf(this.processed())?.text ?? null);
+  readonly summarizing = computed(() => this.summaryOf(this.processed())?.pending ?? false);
+  readonly summaryError = computed(() => this.summaryOf(this.processed())?.failed ?? false);
   readonly originalSegments = computed(() => {
     const analysis = this.analysis();
     if (!analysis) return [];
@@ -185,6 +196,40 @@ export class DocumentService {
         this.controller = undefined;
       }
     }
+  }
+
+  async summarize(language: string): Promise<boolean> {
+    const analysis = this.analysis();
+    const result = this.result();
+    if (!analysis || !result || this.processing() || this.summarizing()) return false;
+    const request = ++this.request;
+    const controller = new AbortController();
+    this.controller = controller;
+    this.summaryState.set({ result, text: null, pending: true, failed: false });
+    try {
+      const text = await this.processor.summarize(
+        analysis,
+        result.entities.map((entity) => entity.id),
+        language,
+        controller.signal,
+      );
+      if (request !== this.request || controller.signal.aborted) return false;
+      if (!text.trim()) throw new Error('Invalid summary');
+      this.summaryState.set({ result, text, pending: false, failed: false });
+      return true;
+    } catch {
+      if (request === this.request && !controller.signal.aborted) {
+        this.summaryState.set({ result, text: null, pending: false, failed: true });
+      }
+      return false;
+    } finally {
+      if (request === this.request) this.controller = undefined;
+    }
+  }
+
+  private summaryOf(result: ProcessedDocument | null): SummaryState | null {
+    const state = this.summaryState();
+    return state && result && state.result === result ? state : null;
   }
 
   clear(): void {

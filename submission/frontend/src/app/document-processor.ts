@@ -54,6 +54,12 @@ export interface DocumentProcessor {
     selectedEntityIds: readonly string[],
     signal: AbortSignal,
   ): Promise<ProcessedDocument>;
+  summarize(
+    analysis: AnalyzedDocument,
+    selectedEntityIds: readonly string[],
+    language: string,
+    signal: AbortSignal,
+  ): Promise<string>;
 }
 
 /** null keeps processing local; configure the agreed endpoint to enable HTTP. */

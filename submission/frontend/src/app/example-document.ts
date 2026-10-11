@@ -58,6 +58,12 @@ export const exampleDocumentProcessor: DocumentProcessor = {
       source: 'example',
     };
   },
+  async summarize(_analysis, _selectedEntityIds, language, signal) {
+    checkCancellation(signal);
+    return language === 'pt-PT'
+      ? 'Ficha de acompanhamento de uma paciente. O documento contém dados pessoais, um diagnóstico e medicação prescrita, todos protegidos.'
+      : 'Follow-up record of a patient. The document contains personal data, a diagnosis and prescribed medication, all protected.';
+  },
 };
 
 function checkCancellation(signal: AbortSignal): void {

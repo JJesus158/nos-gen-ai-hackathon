@@ -14,28 +14,34 @@
       <section class="panel preview-panel">
         <div class="panel-heading">
           <h2 id="original-title">{{ language.text().original }}</h2>
-          <span class="sample-label">{{ language.text().originalTag }}</span>
+          <span class="preview-file-name">{{ documents.file()?.name }}</span>
         </div>
         <div class="paper-scroll" role="region" aria-labelledby="original-title" tabindex="0">
-          <div class="paper">
-            @if (result.source === 'example') {
-              <span class="paper-brand">{{ language.text().sampleDocument }}</span>
-            }
-            <h3>{{ documents.file()?.name }}</h3>
-            <div class="document-text">
-              @for (segment of documents.originalSegments(); track $index) {
-                @if (segment.sensitive && documents.isSelected(segment.entityId!)) {
-                  <mark
-                    class="category-highlight is-selected"
-                    [style.--category-color]="categoryDetails(segment.type!).color"
-                    >{{ segment.text }}</mark
-                  >
-                } @else {
-                  <span>{{ segment.text }}</span>
+          @if (originalPreviewFailed() || !documents.file()) {
+            <!-- The PDF cannot be rendered: the analyzed text, with the protected data marked. -->
+            <div class="paper">
+              <div class="document-text">
+                @for (segment of documents.originalSegments(); track $index) {
+                  @if (segment.sensitive && documents.isSelected(segment.entityId!)) {
+                    <mark
+                      class="category-highlight is-selected"
+                      [style.--category-color]="categoryDetails(segment.type!).color"
+                      >{{ segment.text }}</mark
+                    >
+                  } @else {
+                    <span>{{ segment.text }}</span>
+                  }
                 }
-              }
+              </div>
             </div>
-          </div>
+          } @else {
+            <app-pdf-preview
+              [file]="documents.file()"
+              [fullSize]="true"
+              [showControls]="false"
+              (unavailable)="originalPreviewFailed.set(true)"
+            />
+          }
         </div>
       </section>
       <section class="panel preview-panel protected-panel">
@@ -89,45 +95,89 @@
               }
             </button>
           }
+          <span class="preview-file-name">{{ result.download.name }}</span>
         </div>
         @if (documents.summaryError()) {
           <p class="summary-error" role="alert">{{ language.text().summaryError }}</p>
         }
         <div class="paper-scroll" role="region" aria-labelledby="anonymized-title" tabindex="0">
-          <div class="paper">
-            @if (view() === 'summary' && documents.summary(); as summary) {
+          @if (view() === 'summary' && documents.summary(); as summary) {
+            <div class="paper">
               <span class="paper-brand">{{ language.text().summaryNote }}</span>
               <h3>{{ language.text().summaryTitle }}</h3>
               <div class="document-text">{{ summary }}</div>
-            } @else {
-              @if (result.source === 'example') {
-                <span class="paper-brand">{{ language.text().sampleDocument }}</span>
-              }
-              <h3>{{ result.download.name }}</h3>
+            </div>
+          } @else if (!resultIsPdf() || resultPreviewFailed()) {
+            <!-- A text download, or a PDF that cannot be rendered: the anonymized text itself. -->
+            <div class="paper">
               <div class="document-text">{{ result.anonymizedText }}</div>
-            }
-          </div>
+            </div>
+          } @else {
+            <div class="pdf-result-preview" [attr.aria-label]="language.text().firstPagePreview">
+              <app-pdf-preview
+                [file]="
+                  maskMode() === 'blur'
+                    ? (blurredPreviewPdf() ?? result.download.blob)
+                    : result.download.blob
+                "
+                [fullSize]="true"
+                [showControls]="false"
+                [maskMode]="maskMode() === 'blur' ? 'blur' : 'highlight'"
+                [highlights]="maskMode() === 'blur' ? result.entities : []"
+                [sourceText]="result.originalText"
+                (unavailable)="resultPreviewFailed.set(true)"
+              />
+            </div>
+          }
         </div>
+        @if (view() !== 'summary' && resultIsPdf() && !resultPreviewFailed()) {
+          <div class="mask-controls" role="group" [attr.aria-label]="language.text().maskMode">
+            <span class="mask-label">{{ language.text().maskMode }}</span>
+            <button
+              type="button"
+              class="mask-option"
+              [class.is-selected]="maskMode() === 'asterisk'"
+              [attr.aria-pressed]="maskMode() === 'asterisk'"
+              (click)="maskMode.set('asterisk')"
+            >
+              {{ language.text().asterisks }}
+            </button>
+            <button
+              type="button"
+              class="mask-option"
+              [class.is-selected]="maskMode() === 'blur'"
+              [attr.aria-pressed]="maskMode() === 'blur'"
+              (click)="maskMode.set('blur')"
+            >
+              {{ language.text().blur }}
+            </button>
+          </div>
+        }
         <span class="visually-hidden" role="status">{{
           documents.summarizing() ? language.text().summarizing : ''
         }}</span>
       </section>
     </div>
     <div class="page-actions">
-      <button type="button" class="btn btn-outline-secondary" (click)="backToReview()">
-        <svg
-          width="12"
-          height="12"
-          [attr.viewBox]="'0 0 ' + backIcon.icon[0] + ' ' + backIcon.icon[1]"
-          fill="currentColor"
-          aria-hidden="true"
-          focusable="false"
-        >
-          <path [attr.d]="backIcon.icon[4]" />
-        </svg>
-        {{ language.text().backToReview }}
-      </button>
       <div class="page-action-group">
+        <button type="button" class="btn btn-outline-secondary" (click)="backToReview()">
+          <svg
+            width="12"
+            height="12"
+            [attr.viewBox]="'0 0 ' + backIcon.icon[0] + ' ' + backIcon.icon[1]"
+            fill="currentColor"
+            aria-hidden="true"
+            focusable="false"
+          >
+            <path [attr.d]="backIcon.icon[4]" />
+          </svg>
+          {{ language.text().back }}
+        </button>
+      </div>
+      <div class="page-action-group">
+        <button type="button" class="btn btn-outline-secondary" (click)="restart.emit()">
+          {{ language.text().chooseAnother }}
+        </button>
         @if (documents.summary() !== null) {
           <button type="button" class="btn btn-outline-secondary" (click)="downloadSummary()">
             {{ language.text().downloadSummary }}

@@ -6,21 +6,30 @@ import { AnalyzedDocument, DOCUMENT_PROCESSOR, ProcessedDocument } from '../../d
 import { LanguageService } from '../../language.service';
 import { textRange } from '../../manual-selection';
 import { exampleDocumentProcessor } from '../../example-document';
+import { MANUAL_STORAGE_KEY } from '../../manual-storage';
 
 jasmine.DEFAULT_TIMEOUT_INTERVAL = 10000;
 
 describe('PDF selection', () => {
   let savedLanguage: string | null;
+  let savedMarks: string | null;
 
   beforeEach(() => {
     savedLanguage = localStorage.getItem('language');
+    savedMarks = localStorage.getItem(MANUAL_STORAGE_KEY);
     localStorage.removeItem('language');
+    localStorage.removeItem(MANUAL_STORAGE_KEY);
     TestBed.configureTestingModule({ imports: [Anonymize], providers: [provideRouter([])] });
   });
 
   afterEach(() => {
-    if (savedLanguage === null) localStorage.removeItem('language');
-    else localStorage.setItem('language', savedLanguage);
+    for (const [key, value] of [
+      ['language', savedLanguage],
+      [MANUAL_STORAGE_KEY, savedMarks],
+    ]) {
+      if (value === null) localStorage.removeItem(key!);
+      else localStorage.setItem(key!, value!);
+    }
     document.documentElement.lang = 'en';
   });
 
@@ -28,6 +37,20 @@ describe('PDF selection', () => {
     const fixture = TestBed.createComponent(Anonymize);
     await fixture.whenStable();
     return fixture;
+  }
+
+  /** Waits for the text view, which replaces a PDF preview that could not be rendered. */
+  async function textPanels(
+    fixture: ComponentFixture<Anonymize>,
+    count: number,
+  ): Promise<HTMLElement[]> {
+    const root = fixture.nativeElement as HTMLElement;
+    const panels = () => Array.from(root.querySelectorAll<HTMLElement>('.paper .document-text'));
+    for (let i = 0; i < 100 && panels().length < count; i++) {
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      await fixture.whenStable();
+    }
+    return panels();
   }
 
   it('rejects non-PDF and empty files and disables analysis without selection', async () => {
@@ -158,13 +181,12 @@ describe('PDF selection', () => {
     root.querySelector<HTMLButtonElement>('.page-actions .btn-primary')!.click();
     await new Promise((resolve) => setTimeout(resolve, 5100));
     await fixture.whenStable();
-    const texts = () =>
-      Array.from(root.querySelectorAll('.paper .document-text'), (element) => element.textContent);
-    expect(texts()).toEqual([originalText, result.anonymizedText]);
+    const texts = async () => (await textPanels(fixture, 2)).map((element) => element.textContent);
+    expect(await texts()).toEqual([originalText, result.anonymizedText]);
     expect(root.querySelector('.paper img, .paper script')).toBeNull();
     TestBed.inject(LanguageService).setPreference('pt-PT');
     await fixture.whenStable();
-    expect(texts()).toEqual([originalText, result.anonymizedText]);
+    expect(await texts()).toEqual([originalText, result.anonymizedText]);
     expect(root.querySelector('#results-title')!.textContent).toBe('Comparar as duas versões');
     const createUrl = spyOn(URL, 'createObjectURL').and.returnValue('blob:backend-document');
     const revokeUrl = spyOn(URL, 'revokeObjectURL');
@@ -203,10 +225,22 @@ describe('PDF selection', () => {
     await fixture.whenStable();
     const root = fixture.nativeElement as HTMLElement;
     const all = root.querySelector<HTMLInputElement>('.select-all input')!;
-    const names = root.querySelector<HTMLInputElement>('.category-group legend input')!;
+    const names = root.querySelector<HTMLInputElement>('.category-group .category-heading input')!;
     const first = root.querySelector<HTMLInputElement>('[data-entity-id="name-1"]')!;
     const second = root.querySelector<HTMLInputElement>('[data-entity-id="name-2"]')!;
     expect(all.checked).toBeTrue();
+    // Categories start open; the toggle collapses one and makes its items inert.
+    const toggle = root.querySelector<HTMLButtonElement>('.category-toggle')!;
+    expect(root.querySelectorAll('.category-group.is-open').length).toBe(2);
+    expect(toggle.getAttribute('aria-expanded')).toBe('true');
+    toggle.click();
+    await fixture.whenStable();
+    expect(root.querySelectorAll('.category-group.is-open').length).toBe(1);
+    expect(toggle.getAttribute('aria-expanded')).toBe('false');
+    expect(root.querySelector('.category-items[inert]')).not.toBeNull();
+    toggle.click();
+    await fixture.whenStable();
+    expect(root.querySelectorAll('.category-group.is-open').length).toBe(2);
     first.click();
     await fixture.whenStable();
     expect(documents.selectedEntityIds()).toEqual(['name-2', 'id-1']);
@@ -302,9 +336,7 @@ describe('PDF selection', () => {
     await fixture.whenStable();
     fixture.nativeElement.querySelector('.upload-actions button').click();
     await fixture.whenStable();
-    expect(fixture.nativeElement.querySelector('.document-text').textContent).toBe(
-      result.originalText,
-    );
+    expect((await textPanels(fixture, 1))[0].textContent).toBe(result.originalText);
     expect(fixture.nativeElement.querySelector('.empty-entities')).not.toBeNull();
     expect(fixture.nativeElement.querySelectorAll('.entity-option').length).toBe(0);
     expect(fixture.nativeElement.querySelectorAll('mark').length).toBe(0);
@@ -347,7 +379,7 @@ describe('PDF selection', () => {
     it('categorizes selected text, which is then listed, highlighted and masked', async () => {
       const { fixture, documents, root } = await review();
       const text = documents.analysis()!.originalText;
-      expect(root.querySelector('.preview-panel .panel-heading')!.textContent).toContain(
+      expect(root.querySelector('#manual-hint')!.textContent).toBe(
         'Select text in the document to mark data that was not identified.',
       );
       await selectText(fixture, 'compan');
@@ -375,13 +407,13 @@ describe('PDF selection', () => {
         'Names',
         'Identifiers',
         'Contact details',
-        'Date of birth',
+        'Dates of birth',
         'Financial data',
         'Health',
         'Sensitive data',
         'Private life',
-        'Age',
-        'Occupation',
+        'Ages',
+        'Occupations',
         'Healthcare professionals',
         'Sex and gender',
         'New category…',
@@ -410,9 +442,9 @@ describe('PDF selection', () => {
       expect(Array.from(marks, (mark) => mark.textContent)).toContain('acompanhamento');
       expect(root.querySelector('.document-text')!.textContent).toBe(text);
       const item = root.querySelector('[data-entity-id="manual-1"]')!.closest('.entity-item')!;
-      expect(item.closest('fieldset')!.querySelector('legend')!.textContent).toContain(
-        'Identifiers',
-      );
+      expect(
+        item.closest('.category-group')!.querySelector('.category-heading')!.textContent,
+      ).toContain('Identifiers');
       expect(item.querySelector('strong')!.textContent).toBe('acompanhamento');
       expect(item.querySelector('.manual-badge')!.textContent).toBe('Added by you');
       expect(item.querySelector('label button')).toBeNull();
@@ -750,8 +782,9 @@ describe('PDF selection', () => {
 
     const summarizeButton = (root: HTMLElement) =>
       root.querySelector<HTMLButtonElement>('.summarize-button');
-    const papers = (root: HTMLElement) =>
-      Array.from(root.querySelectorAll('.paper .document-text'), (element) => element.textContent);
+    /** Both panels fall back to text (fake PDF, .txt download) once rendering has failed. */
+    const papers = async (fixture: ComponentFixture<Anonymize>) =>
+      (await textPanels(fixture, 2)).map((element) => element.textContent);
     const title = (root: HTMLElement) =>
       root.querySelector('#anonymized-title')!.textContent!.trim();
     /** The processor answers in a microtask: let it settle before reading the view. */
@@ -774,7 +807,7 @@ describe('PDF selection', () => {
       const summary = documents.summary()!;
       expect(summary).toContain('Follow-up record');
       expect(title(root)).toBe('Readable summary');
-      expect(papers(root)[1]).toBe(summary);
+      expect((await papers(fixture))[1]).toBe(summary);
       expect(root.querySelector('.protected-panel .paper-brand')!.textContent).toBe(
         'Written from the anonymized text only. Hidden data is never sent.',
       );
@@ -786,11 +819,11 @@ describe('PDF selection', () => {
       expect(options[1].getAttribute('aria-pressed')).toBe('true');
       options[0].click();
       await fixture.whenStable();
-      expect(papers(root)[1]).toBe(documents.result()!.anonymizedText);
+      expect((await papers(fixture))[1]).toBe(documents.result()!.anonymizedText);
       expect(title(root)).toBe('Anonymized');
       options[1].click();
       await fixture.whenStable();
-      expect(papers(root)[1]).toBe(summary);
+      expect((await papers(fixture))[1]).toBe(summary);
 
       const createUrl = spyOn(URL, 'createObjectURL').and.returnValue('blob:summary');
       spyOn(URL, 'revokeObjectURL');
@@ -798,16 +831,19 @@ describe('PDF selection', () => {
       spyOn(HTMLAnchorElement.prototype, 'click').and.callFake(function (this: HTMLAnchorElement) {
         downloaded = { name: this.download, href: this.href };
       });
-      const buttons = root.querySelectorAll<HTMLButtonElement>('.page-action-group .btn');
-      expect(buttons[0].textContent!.trim()).toBe('Download summary');
-      buttons[0].click();
+      const buttons = Array.from(
+        root.querySelectorAll<HTMLButtonElement>('.page-action-group .btn'),
+      );
+      const downloadSummary = buttons.find((b) => b.textContent!.trim() === 'Download summary')!;
+      expect(downloadSummary).toBeDefined();
+      downloadSummary.click();
       expect(downloaded).toEqual({ name: 'ficha-summary.txt', href: 'blob:summary' });
       expect(await (createUrl.calls.mostRecent().args[0] as Blob).text()).toBe(summary);
 
       TestBed.inject(LanguageService).setPreference('pt-PT');
       await fixture.whenStable();
       expect(title(root)).toBe('Resumo legível');
-      expect(papers(root)[1]).toBe(summary);
+      expect((await papers(fixture))[1]).toBe(summary);
 
       root.querySelector<HTMLButtonElement>('.page-actions .btn-outline-secondary')!.click();
       await settle(fixture);
@@ -815,7 +851,7 @@ describe('PDF selection', () => {
       await documents.anonymize();
       await settle(fixture);
       expect(summarizeButton(root)!.textContent).toContain('Resumir');
-      expect(papers(root)[1]).toBe(documents.result()!.anonymizedText);
+      expect((await papers(fixture))[1]).toBe(documents.result()!.anonymizedText);
     });
 
     it('shows an error when the summary fails and lets the user try again', async () => {
@@ -839,7 +875,7 @@ describe('PDF selection', () => {
       summarizeButton(root)!.click();
       await settle(fixture);
       expect(root.querySelector('.summary-error')).toBeNull();
-      expect(papers(root)[1]).toBe('Resumo curto.');
+      expect((await papers(fixture))[1]).toBe('Resumo curto.');
     });
   });
 });

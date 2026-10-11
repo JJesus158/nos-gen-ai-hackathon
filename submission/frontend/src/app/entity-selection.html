@@ -19,17 +19,28 @@
         {{ language.text().selectAll }}
       </label>
       @for (group of groups(); track group.type) {
-        <fieldset class="category-group" [style.--category-color]="group.details.color">
-          <legend>
-            <label class="category-heading">
-              <input
-                #category
-                type="checkbox"
-                [checked]="documents.selectionState(group.ids) === 'all'"
-                [indeterminate]="documents.selectionState(group.ids) === 'some'"
-                [disabled]="documents.processing()"
-                (change)="documents.setEntities(group.ids, category.checked)"
-              />
+        <div
+          class="category-group"
+          [class.is-open]="isCategoryOpen(group.type)"
+          [style.--category-color]="group.details.color"
+        >
+          <div class="category-heading">
+            <input
+              #category
+              type="checkbox"
+              [attr.aria-label]="categoryLabel(group.type, language.text())"
+              [checked]="documents.selectionState(group.ids) === 'all'"
+              [indeterminate]="documents.selectionState(group.ids) === 'some'"
+              [disabled]="documents.processing()"
+              (change)="documents.setEntities(group.ids, category.checked)"
+            />
+            <button
+              type="button"
+              class="category-toggle"
+              [attr.aria-expanded]="isCategoryOpen(group.type)"
+              [attr.aria-controls]="'category-items-' + group.type"
+              (click)="toggleCategory(group.type)"
+            >
               <span class="category-icon" aria-hidden="true">
                 <svg
                   [attr.viewBox]="
@@ -43,54 +54,63 @@
               </span>
               <span>{{ categoryLabel(group.type, language.text()) }}</span>
               <span class="category-count muted" aria-hidden="true">{{ group.items.length }}</span>
-            </label>
-          </legend>
-          @for (entity of group.items; track entity.id) {
-            @let value = documents.analysis()!.originalText.slice(entity.start, entity.end);
-            <div class="entity-item">
-              <label class="entity-option">
-                <input
-                  #occurrence
-                  type="checkbox"
-                  [attr.data-entity-id]="entity.id"
-                  [checked]="documents.isSelected(entity.id)"
-                  [disabled]="documents.processing()"
-                  (change)="documents.setEntities([entity.id], occurrence.checked)"
-                />
-                <span>
-                  <strong>{{ value }}</strong>
-                  @if (entity.reason) {
-                    <small>{{ entity.reason }}</small>
-                  }
+              <span class="category-chevron" aria-hidden="true"></span>
+            </button>
+          </div>
+          <div
+            class="category-items"
+            [id]="'category-items-' + group.type"
+            [attr.inert]="isCategoryOpen(group.type) ? null : ''"
+          >
+            <div>
+              @for (entity of group.items; track entity.id) {
+                @let value = documents.analysis()!.originalText.slice(entity.start, entity.end);
+                <div class="entity-item">
+                  <label class="entity-option">
+                    <input
+                      #occurrence
+                      type="checkbox"
+                      [attr.data-entity-id]="entity.id"
+                      [checked]="documents.isSelected(entity.id)"
+                      [disabled]="documents.processing()"
+                      (change)="documents.setEntities([entity.id], occurrence.checked)"
+                    />
+                    <span>
+                      <strong>{{ value }}</strong>
+                      @if (entity.reason) {
+                        <small>{{ entity.reason }}</small>
+                      }
+                      @if (entity.manual) {
+                        <small class="manual-badge">{{ language.text().manualBadge }}</small>
+                      }
+                    </span>
+                  </label>
                   @if (entity.manual) {
-                    <small class="manual-badge">{{ language.text().manualBadge }}</small>
+                    <button
+                      type="button"
+                      class="btn remove-manual"
+                      [attr.aria-label]="language.text().removeManual + ' ' + value"
+                      [attr.title]="language.text().removeManual"
+                      [disabled]="documents.processing()"
+                      (click)="remove(entity.id)"
+                    >
+                      <svg
+                        width="12"
+                        height="12"
+                        [attr.viewBox]="'0 0 ' + removeIcon.icon[0] + ' ' + removeIcon.icon[1]"
+                        fill="currentColor"
+                        aria-hidden="true"
+                        focusable="false"
+                      >
+                        <path [attr.d]="removeIcon.icon[4]" />
+                      </svg>
+                    </button>
                   }
-                </span>
-              </label>
-              @if (entity.manual) {
-                <button
-                  type="button"
-                  class="btn remove-manual"
-                  [attr.aria-label]="language.text().removeManual + ' ' + value"
-                  [attr.title]="language.text().removeManual"
-                  [disabled]="documents.processing()"
-                  (click)="remove(entity.id)"
-                >
-                  <svg
-                    width="12"
-                    height="12"
-                    [attr.viewBox]="'0 0 ' + removeIcon.icon[0] + ' ' + removeIcon.icon[1]"
-                    fill="currentColor"
-                    aria-hidden="true"
-                    focusable="false"
-                  >
-                    <path [attr.d]="removeIcon.icon[4]" />
-                  </svg>
-                </button>
+                </div>
               }
             </div>
-          }
-        </fieldset>
+          </div>
+        </div>
       }
     } @else {
       <p class="empty-entities muted small">{{ language.text().noEntities }}</p>

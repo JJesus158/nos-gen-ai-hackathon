@@ -39,17 +39,52 @@
           <span class="theme-toggle-thumb" aria-hidden="true"></span>
         </button>
       </div>
-      <label class="visually-hidden" for="language-select">{{ language.text().language }}</label>
-      <select
-        #languageSelect
-        id="language-select"
-        class="form-select language-select"
-        [value]="language.preference()"
-        (change)="setLanguage(languageSelect.value)"
-      >
-        <option value="en">{{ language.text().english }}</option>
-        <option value="pt-PT">{{ language.text().portuguese }}</option>
-      </select>
+      <div class="language-control">
+        <button
+          type="button"
+          class="language-select"
+          [attr.aria-label]="language.text().language"
+          [attr.aria-expanded]="languageMenuOpen()"
+          aria-haspopup="listbox"
+          (click)="toggleLanguageMenu()"
+        >
+          <img
+            class="language-flag"
+            [src]="language.preference() === 'en' ? 'flags/gb.svg' : 'flags/pt.svg'"
+            alt=""
+          />
+          <span>{{
+            language.preference() === 'en' ? language.text().english : language.text().portuguese
+          }}</span>
+          <span class="language-chevron" aria-hidden="true">⌄</span>
+        </button>
+        @if (languageMenuOpen()) {
+          <div class="language-menu" role="listbox" [attr.aria-label]="language.text().language">
+            <button
+              type="button"
+              role="option"
+              class="language-option"
+              [class.is-selected]="language.preference() === 'en'"
+              [attr.aria-selected]="language.preference() === 'en'"
+              (click)="setLanguage('en')"
+            >
+              <img class="language-flag" src="flags/gb.svg" alt="" />
+              <span>{{ language.text().english }}</span>
+            </button>
+            <button
+              type="button"
+              role="option"
+              class="language-option"
+              [class.is-selected]="language.preference() === 'pt-PT'"
+              [attr.aria-selected]="language.preference() === 'pt-PT'"
+              (click)="setLanguage('pt-PT')"
+            >
+              <img class="language-flag" src="flags/pt.svg" alt="" />
+              <span>{{ language.text().portuguese }}</span>
+            </button>
+          </div>
+        }
+      </div>
     </div>
   </nav>
 </header>
@@ -58,7 +93,7 @@
 </main>
 <footer class="site-footer">
   <div class="footer-content container">
-    <p>© 2026 DataVeil · {{ language.text().authors }}</p>
+    <p>© 2026 · {{ language.text().authors }}</p>
     <p>{{ apiEnabled ? language.text().apiFooterNote : language.text().footerNote }}</p>
   </div>
 </footer>

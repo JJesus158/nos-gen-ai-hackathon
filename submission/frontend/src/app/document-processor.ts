@@ -2,6 +2,18 @@ import { InjectionToken, inject } from '@angular/core';
 import { createApiProcessor } from './document-api';
 import { exampleDocumentProcessor } from './example-document';
 
+export interface PdfEntityBox {
+  /** UTF-16 subrange of the entity in the API's originalText. */
+  readonly start: number;
+  readonly end: number;
+  /** One-based page; unrotated native PDF coordinates, origin bottom-left. */
+  readonly page: number;
+  readonly x: number;
+  readonly y: number;
+  readonly width: number;
+  readonly height: number;
+}
+
 export interface DocumentEntity {
   /** Unique within this analysis, including repeated occurrences of the same value. */
   readonly id: string;
@@ -11,6 +23,13 @@ export interface DocumentEntity {
   readonly type: string;
   readonly replacement: string;
   readonly reason?: string;
+  /** Where the occurrence is in the PDF, from the API; occurrences marked by hand have none. */
+  readonly boxes?: readonly PdfEntityBox[];
+  readonly page?: number;
+  readonly x?: number;
+  readonly y?: number;
+  readonly width?: number;
+  readonly height?: number;
   /** Frontend only: marked by the user on the review screen, never part of a processor analysis. */
   readonly manual?: boolean;
 }

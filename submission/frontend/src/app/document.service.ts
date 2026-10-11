@@ -1,3 +1,4 @@
+import { DOCUMENT } from '@angular/common';
 import { DestroyRef, Injectable, computed, inject, signal } from '@angular/core';
 import {
   AnalyzedDocument,
@@ -9,10 +10,13 @@ import {
   CATEGORY_DETAILS,
   MAX_CATEGORY_LABEL_LENGTH,
   customCategoryCode,
+  customCategoryLabel,
+  isCustomCategory,
   normalizeCategoryLabel,
 } from './document-categories';
 import { TRANSLATIONS } from './language.service';
 import { TextRange, maskReplacement, overlaps, splitsSurrogatePair } from './manual-selection';
+import { documentFingerprint, loadMarks, saveMarks } from './manual-storage';
 
 export type DocumentStage = 'document' | 'analysis' | 'anonymization' | 'results';
 
@@ -25,11 +29,12 @@ interface SummaryState {
 }
 export type SelectionState = 'all' | 'some' | 'none';
 
-export const MIN_ANONYMIZATION_DURATION = 5000;
+export const MIN_ANONYMIZATION_DURATION = 500;
 
 @Injectable({ providedIn: 'root' })
 export class DocumentService {
   private readonly processor = inject(DOCUMENT_PROCESSOR);
+  private readonly document = inject(DOCUMENT);
   private readonly selected = signal<File | null>(null);
   private readonly analyzed = signal<AnalyzedDocument | null>(null);
   private readonly processed = signal<ProcessedDocument | null>(null);
@@ -42,6 +47,8 @@ export class DocumentService {
   private request = 0;
   private controller?: AbortController;
   private manualCount = 0;
+  /** documentFingerprint() of the analysed document: its marks are stored under it. */
+  private fingerprint = '';
 
   readonly file = this.selected.asReadonly();
   readonly analysis = this.analyzed.asReadonly();
@@ -51,7 +58,10 @@ export class DocumentService {
   readonly stage = this.currentStage.asReadonly();
   readonly processing = this.pending.asReadonly();
   readonly error = this.failed.asReadonly();
-  /** Names of the categories created by the user in this session; never persisted. */
+  /**
+   * Names of the categories created by the user in this session, plus those of the marks restored
+   * from the browser storage; the list itself is never stored.
+   */
   readonly customCategories = this.categories.asReadonly();
   /** The current result rewritten as readable text, once summarize() succeeded. */
   readonly summary = computed(() => this.summaryOf(this.processed())?.text ?? null);
@@ -141,6 +151,7 @@ export class DocumentService {
     this.processed.set(null);
     this.currentStage.set('analysis');
     this.failed.set(false);
+    this.storeMarks();
   }
 
   selectAll(checked: boolean): void {
@@ -159,24 +170,13 @@ export class DocumentService {
     const sorted = [...ranges].sort((a, b) => a.start - b.start);
     const valid = sorted.every(
       (range, index) =>
-        Number.isInteger(range.start) &&
-        Number.isInteger(range.end) &&
-        range.start >= 0 &&
-        range.end > range.start &&
-        range.end <= text.length &&
-        !splitsSurrogatePair(text, range.start) &&
-        !splitsSurrogatePair(text, range.end) &&
+        isManualRange(text, range) &&
         (index === 0 || sorted[index - 1].end <= range.start) &&
         !overlaps(range, analysis.entities),
     );
     if (!valid) return [];
     const ids = new Set(analysis.entities.map((entity) => entity.id));
-    const created = ranges.map(({ start, end }): DocumentEntity => {
-      let id = `manual-${++this.manualCount}`;
-      while (ids.has(id)) id = `manual-${++this.manualCount}`;
-      const replacement = maskReplacement(text.slice(start, end));
-      return { id, start, end, type, replacement, manual: true };
-    });
+    const created = ranges.map((range) => this.manualEntity(text, range, type, ids));
     const entities = [...analysis.entities, ...created].sort((a, b) => a.start - b.start);
     const selection = new Set([...this.selectedEntityIds(), ...created.map((entity) => entity.id)]);
     this.analyzed.set({ ...analysis, entities });
@@ -186,6 +186,7 @@ export class DocumentService {
     this.processed.set(null);
     this.currentStage.set('analysis');
     this.failed.set(false);
+    this.storeMarks();
     return created.map((entity) => entity.id);
   }
 
@@ -202,6 +203,7 @@ export class DocumentService {
     this.processed.set(null);
     this.currentStage.set('analysis');
     this.failed.set(false);
+    this.storeMarks();
   }
 
   /**
@@ -239,8 +241,12 @@ export class DocumentService {
       if (request !== this.request || controller.signal.aborted) return false;
       validateAnalysis(analysis);
       this.manualCount = 0;
-      this.analyzed.set(analysis);
-      this.selection.set(analysis.entities.map((entity) => entity.id));
+      this.fingerprint = documentFingerprint(file, analysis.originalText);
+      const restored = this.restoreMarks(analysis);
+      this.analyzed.set(restored.analysis);
+      this.selection.set(restored.selection);
+      // Another document replaces the stored marks, and marks that no longer fit are dropped.
+      this.storeMarks();
       return true;
     } catch {
       if (request === this.request && !controller.signal.aborted) this.failed.set(true);
@@ -339,6 +345,76 @@ export class DocumentService {
     this.pending.set(false);
     this.failed.set(false);
   }
+
+  /**
+   * The analysis with the occurrences marked by hand in this same document before, selected or not
+   * as they were left, and the selection to start from. A stored mark that no longer fits, such as
+   * one that now overlaps detected data, is left out. Their own categories are offered again.
+   */
+  private restoreMarks(analysis: AnalyzedDocument): {
+    analysis: AnalyzedDocument;
+    selection: string[];
+  } {
+    const text = analysis.originalText;
+    const taken: TextRange[] = [...analysis.entities];
+    const ids = new Set(analysis.entities.map((entity) => entity.id));
+    const created: DocumentEntity[] = [];
+    const deselected = new Set<string>();
+    for (const mark of loadMarks(this.document, this.fingerprint)) {
+      if (!isManualRange(text, mark) || overlaps(mark, taken)) continue;
+      const entity = this.manualEntity(text, mark, mark.type, ids);
+      taken.push(entity);
+      created.push(entity);
+      if (!mark.selected) deselected.add(entity.id);
+      if (isCustomCategory(mark.type)) this.addCustomCategory(customCategoryLabel(mark.type));
+    }
+    const entities = created.length
+      ? [...analysis.entities, ...created].sort((a, b) => a.start - b.start)
+      : analysis.entities;
+    return {
+      analysis: created.length ? { ...analysis, entities } : analysis,
+      selection: entities.filter((entity) => !deselected.has(entity.id)).map((entity) => entity.id),
+    };
+  }
+
+  /** Stores the marks made by hand in the analysed document, replacing any other document. */
+  private storeMarks(): void {
+    const analysis = this.analysis();
+    if (!analysis) return;
+    saveMarks(
+      this.document,
+      this.fingerprint,
+      analysis.entities
+        .filter((entity) => entity.manual)
+        .map(({ id, start, end, type }) => ({ start, end, type, selected: this.isSelected(id) })),
+    );
+  }
+
+  /** A new occurrence marked by hand, with an ID that none of `ids` has. */
+  private manualEntity(
+    text: string,
+    { start, end }: TextRange,
+    type: string,
+    ids: ReadonlySet<string>,
+  ): DocumentEntity {
+    let id = `manual-${++this.manualCount}`;
+    while (ids.has(id)) id = `manual-${++this.manualCount}`;
+    const replacement = maskReplacement(text.slice(start, end));
+    return { id, start, end, type, replacement, manual: true };
+  }
+}
+
+/** Integer offsets inside `text`, in order, that split no surrogate pair. */
+function isManualRange(text: string, range: TextRange): boolean {
+  return (
+    Number.isInteger(range.start) &&
+    Number.isInteger(range.end) &&
+    range.start >= 0 &&
+    range.end > range.start &&
+    range.end <= text.length &&
+    !splitsSurrogatePair(text, range.start) &&
+    !splitsSurrogatePair(text, range.end)
+  );
 }
 
 function waitForMinimumDuration(

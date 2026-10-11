@@ -53,7 +53,8 @@
   border-color: var(--accent-text);
 }
 .theme-toggle:focus-visible,
-.language-select:focus-visible {
+.language-select:focus-visible,
+.language-option:focus-visible {
   outline: 2px solid var(--accent-text);
   outline-offset: 3px;
   box-shadow: none;
@@ -105,20 +106,84 @@
   color: var(--muted);
 }
 .language-select {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  position: relative;
   width: 210px;
   height: 34px;
   padding: 5px 28px 5px 10px;
+  border: 1px solid var(--line-bright);
+  appearance: none;
   background-color: var(--surface);
-  background-position: right 8px center;
-  background-size: 12px 9px;
-  border-color: var(--line-bright);
   border-radius: 5px;
   color: var(--ink);
+  font: inherit;
   font-size: 0.78rem;
   cursor: pointer;
+  text-align: left;
+  box-shadow: none;
 }
 .language-select:hover {
   border-color: var(--accent-text);
+}
+.language-control {
+  position: relative;
+}
+.language-flag {
+  flex-shrink: 0;
+  width: 20px;
+  height: 15px;
+  border-radius: 2px;
+  object-fit: cover;
+}
+.language-chevron {
+  position: absolute;
+  display: grid;
+  place-items: center;
+  right: 10px;
+  width: 12px;
+  height: 12px;
+  color: var(--muted);
+  font-size: 0;
+}
+.language-chevron::before {
+  width: 6px;
+  height: 6px;
+  border-right: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
+  transform: translateY(-2px) rotate(45deg);
+  content: '';
+}
+.language-menu {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + 8px);
+  right: 0;
+  width: 210px;
+  padding: 4px;
+  border: 1px solid var(--line-bright);
+  border-radius: 6px;
+  background: var(--surface);
+  box-shadow: 0 8px 20px rgb(0 0 0 / 22%);
+}
+.language-option {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  padding: 8px 9px;
+  border: 0;
+  border-radius: 0;
+  color: var(--ink);
+  background: transparent;
+  font-size: 0.78rem;
+  text-align: left;
+  cursor: pointer;
+}
+.language-option:hover,
+.language-option.is-selected {
+  background: var(--accent-soft);
 }
 .site-footer {
   flex-shrink: 0;
@@ -127,7 +192,7 @@
   border-top: 1px solid var(--line);
   padding-top: 10px;
   padding-bottom: 10px;
-  color: var(--muted);
+  color: var(--footer-text);
   font-size: 0.7rem;
   line-height: 1.7;
 }

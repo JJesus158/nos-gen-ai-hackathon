@@ -4,7 +4,6 @@
       <h1 id="intro-title" tabindex="-1">{{ language.text().heroTitle }}</h1>
       <p>{{ language.text().heroDescription }}</p>
     </section>
-    <app-document-progress />
     <section
       id="submit-document"
       class="upload-section"
@@ -96,14 +95,16 @@
               </div>
             </div>
           }
-          @if (error(); as issue) {
-            <p class="error-message" role="alert">{{ language.text()[issue] }}</p>
-          }
-          @if (documents.error()) {
-            <p class="error-message" role="alert">{{ language.text().processingError }}</p>
-          }
         </div>
         <div class="upload-actions">
+          <div class="upload-error" aria-live="polite">
+            @if (error(); as issue) {
+              <p class="error-message" role="alert">{{ language.text()[issue] }}</p>
+            }
+            @if (documents.error()) {
+              <p class="error-message" role="alert">{{ language.text().processingError }}</p>
+            }
+          </div>
           <button
             type="button"
             class="btn btn-primary"
@@ -133,6 +134,7 @@
         documents.processing() ? language.text().processing : ''
       }}</span>
     </section>
+    <app-document-progress />
   </div>
 } @else if (documents.result()) {
   <app-results (restart)="remove()" (back)="backToReview()" />
@@ -181,48 +183,93 @@
       tabindex="0"
     >
       <section class="panel preview-panel">
-        <div class="panel-heading">
-          <h2 id="preview-title">{{ language.text().documentPreview }}</h2>
+        <div class="panel-heading preview-heading">
+          <h2 id="preview-title">
+            {{ language.text().documentPreview }}
+          </h2>
+          @if (pdfMappingAvailable() && !pdfPreviewFailed() && highlightedPdf()) {
+            <div class="analysis-pdf-controls" role="toolbar" aria-label="PDF zoom controls">
+              <button
+                type="button"
+                (click)="zoomPreviewOut()"
+                [disabled]="previewZoom() <= 0.5"
+                aria-label="Zoom out"
+              >
+                −
+              </button>
+              <button type="button" (click)="resetPreviewZoom()" aria-label="Reset zoom">
+                {{ (previewZoom() * 100).toFixed(0) }}%
+              </button>
+              <button
+                type="button"
+                (click)="zoomPreviewIn()"
+                [disabled]="previewZoom() >= 2.5"
+                aria-label="Zoom in"
+              >
+                +
+              </button>
+              <button type="button" (click)="fitPreviewWidth()" aria-label="Fit PDF to width">
+                ↔
+              </button>
+              <button type="button" (click)="fitPreviewHeight()" aria-label="Fit PDF to height">
+                ↕
+              </button>
+            </div>
+          }
+          <span class="preview-file-name">{{ documents.file()?.name }}</span>
         </div>
         <div class="paper-scroll" role="region" aria-labelledby="preview-title" tabindex="0">
-          <div class="paper">
-            @if (analysis.source === 'example') {
-              <span class="paper-brand">{{ language.text().sampleDocument }}</span>
+          @if (!pdfMappingAvailable() || pdfPreviewFailed()) {
+            @if (analysis.source === 'api') {
+              <p class="small muted" role="status">{{ language.text().pdfMappingUnavailable }}</p>
             }
-            <h3>{{ documents.file()?.name }}</h3>
-            <div class="document-text">
-              @for (segment of documents.originalSegments(); track $index) {
-                @if (segment.sensitive) {
-                  <mark
-                    class="category-highlight"
-                    [class.is-selected]="documents.isSelected(segment.entityId!)"
-                    [style.--category-color]="categoryDetails(segment.type!).color"
-                    >{{ segment.text }}</mark
-                  >
-                } @else {
-                  <span>{{ segment.text }}</span>
+            <div class="paper">
+              <div class="document-text analysis-text-preview">
+                @for (segment of documents.originalSegments(); track $index) {
+                  @if (segment.sensitive) {
+                    <mark
+                      class="category-highlight"
+                      [class.is-selected]="documents.isSelected(segment.entityId!)"
+                      [style.--category-color]="categoryDetails(segment.type!).color"
+                      >{{ segment.text }}</mark
+                    >
+                  } @else {
+                    <span>{{ segment.text }}</span>
+                  }
                 }
-              }
+              </div>
             </div>
-          </div>
+          } @else if (highlightedPdf(); as pdf) {
+            <app-pdf-preview
+              [file]="pdf"
+              [fullSize]="true"
+              [showControls]="false"
+              [zoomLevel]="previewZoom()"
+            />
+          } @else {
+            <p role="status">{{ language.text().previewLoading }}</p>
+          }
         </div>
       </section>
       <app-entity-selection />
     </div>
     <div class="page-actions">
-      <button type="button" class="btn btn-outline-secondary" (click)="backToDocument()">
-        <svg
-          width="12"
-          height="12"
-          [attr.viewBox]="'0 0 ' + backIcon.icon[0] + ' ' + backIcon.icon[1]"
-          fill="currentColor"
-          aria-hidden="true"
-          focusable="false"
-        >
-          <path [attr.d]="backIcon.icon[4]" />
-        </svg>
-        {{ language.text().back }}</button
-      ><button
+      <div class="page-action-group">
+        <button type="button" class="btn btn-outline-secondary" (click)="backToDocument()">
+          <svg
+            width="12"
+            height="12"
+            [attr.viewBox]="'0 0 ' + backIcon.icon[0] + ' ' + backIcon.icon[1]"
+            fill="currentColor"
+            aria-hidden="true"
+            focusable="false"
+          >
+            <path [attr.d]="backIcon.icon[4]" />
+          </svg>
+          {{ language.text().back }}
+        </button>
+      </div>
+      <button
         type="button"
         class="btn btn-primary"
         [disabled]="documents.processing()"

@@ -138,22 +138,44 @@ describe('Application shell and preferences', () => {
     }
   });
 
-  it('changes language from the top bar dropdown and persists the choice', async () => {
+  it('changes language from the top bar menu and persists the choice', async () => {
     const fixture = TestBed.createComponent(App);
     await fixture.whenStable();
     const root = fixture.nativeElement as HTMLElement;
-    const select = root.querySelector<HTMLSelectElement>('#language-select')!;
-    select.value = 'pt-PT';
-    select.dispatchEvent(new Event('change', { bubbles: true }));
+    const toggle = root.querySelector<HTMLButtonElement>('.language-select')!;
+    expect(root.querySelector('.language-menu')).toBeNull();
+    expect(toggle.getAttribute('aria-expanded')).toBe('false');
+    toggle.click();
+    await fixture.whenStable();
+    expect(toggle.getAttribute('aria-expanded')).toBe('true');
+    const options = root.querySelectorAll<HTMLButtonElement>('.language-option');
+    expect(Array.from(options, (option) => option.textContent!.trim())).toEqual([
+      'English',
+      'Português (Portugal)',
+    ]);
+    expect(options[0].getAttribute('aria-selected')).toBe('true');
+    options[1].click();
     await fixture.whenStable();
     expect(document.documentElement.lang).toBe('pt-PT');
     expect(localStorage.getItem('language')).toBe('pt-PT');
-    expect(select.value).toBe('pt-PT');
-    select.value = 'en';
-    select.dispatchEvent(new Event('change', { bubbles: true }));
+    expect(root.querySelector('.language-menu')).toBeNull();
+    expect(toggle.textContent).toContain('Português (Portugal)');
+    expect(toggle.querySelector('img')!.getAttribute('src')).toBe('flags/pt.svg');
+    toggle.click();
+    await fixture.whenStable();
+    root.querySelectorAll<HTMLButtonElement>('.language-option')[0].click();
     await fixture.whenStable();
     expect(document.documentElement.lang).toBe('en');
-    expect(select.value).toBe('en');
+    expect(toggle.textContent).toContain('English');
+    // A click elsewhere closes the menu.
+    toggle.click();
+    await fixture.whenStable();
+    expect(root.querySelector('.language-menu')).not.toBeNull();
+    root
+      .querySelector<HTMLElement>('main')!
+      .dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    await fixture.whenStable();
+    expect(root.querySelector('.language-menu')).toBeNull();
   });
 
   it('gives the top bar preferences accessible names', async () => {
@@ -163,7 +185,9 @@ describe('Application shell and preferences', () => {
     expect(root.querySelector('header .theme-toggle')!.getAttribute('aria-label')).toBe(
       'Appearance',
     );
-    expect(root.querySelector('header #language-select')).not.toBeNull();
+    expect(root.querySelector('header .language-select')!.getAttribute('aria-label')).toBe(
+      'Language',
+    );
   });
 
   it('uses one workflow route with a brand and global preferences', async () => {
@@ -177,7 +201,7 @@ describe('Application shell and preferences', () => {
       expect(fixture.nativeElement.querySelectorAll('header nav a').length).toBe(1);
       expect(fixture.nativeElement.querySelector('.brand').getAttribute('href')).toBe('/');
       expect(fixture.nativeElement.querySelector('header .theme-toggle')).not.toBeNull();
-      expect(fixture.nativeElement.querySelector('header #language-select')).not.toBeNull();
+      expect(fixture.nativeElement.querySelector('header .language-select')).not.toBeNull();
     }
   });
 
@@ -201,11 +225,12 @@ describe('Application shell and preferences', () => {
       ) as HTMLElement;
     const completed = () =>
       fixture.nativeElement.querySelectorAll('.document-progress .complete').length;
-    expect(current().textContent).toContain('Document');
+    // No step is current until a document is chosen.
+    expect(current()).toBeNull();
     expect(completed()).toBe(0);
     await documents.analyze();
     await fixture.whenStable();
-    expect(current().textContent).toContain('Document');
+    expect(current()).toBeNull();
     await selectPdf('sample.pdf');
     expect(current().textContent).toContain('Document');
     expect(completed()).toBe(0);
@@ -246,7 +271,7 @@ describe('Application shell and preferences', () => {
     expect(completed()).toBe(0);
     fixture.nativeElement.querySelector('.selected-file button').click();
     await fixture.whenStable();
-    expect(current().textContent).toContain('Documento');
+    expect(current()).toBeNull();
     expect(completed()).toBe(0);
   });
 
@@ -266,7 +291,7 @@ describe('Application shell and preferences', () => {
       fixture.nativeElement.querySelector('[aria-current="step"]').textContent.trim();
     fixture.detectChanges();
     expect(fixture.nativeElement.querySelectorAll('li').length).toBe(4);
-    expect(current()).toContain('Document');
+    expect(fixture.nativeElement.querySelector('[aria-current="step"]')).toBeNull();
     documents.select(new File(['%PDF-local'], 'sample.pdf', { type: 'application/pdf' }));
     fixture.detectChanges();
     expect(current()).toContain('Document');
@@ -320,9 +345,19 @@ describe('Application shell and preferences', () => {
     await new Promise((resolve) => setTimeout(resolve, 5100));
     await fixture.whenStable();
     expect(router.url).toBe('/');
-    const panels = fixture.nativeElement.querySelectorAll('.paper .document-text');
-    expect(panels[0].textContent).toBe(documents.result()!.originalText);
-    expect(panels[1].textContent).toBe(documents.result()!.anonymizedText);
+    // The file is not a real PDF: both panels fall back to the text once rendering fails.
+    const panels = (): HTMLElement[] =>
+      Array.from(
+        (fixture.nativeElement as HTMLElement).querySelectorAll<HTMLElement>(
+          '.paper .document-text',
+        ),
+      );
+    for (let i = 0; i < 100 && panels().length < 2; i++) {
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      await fixture.whenStable();
+    }
+    expect(panels()[0].textContent).toBe(documents.result()!.originalText);
+    expect(panels()[1].textContent).toBe(documents.result()!.anonymizedText);
     fixture.nativeElement.querySelector('.page-actions .btn-outline-secondary').click();
     await fixture.whenStable();
     expect(fixture.nativeElement.querySelector('app-results')).toBeNull();

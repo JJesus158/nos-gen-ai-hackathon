@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, inject, signal } from '@angular/core';
 import { categoryDetails } from './document-categories';
 import { DocumentService } from './document.service';
 import { LanguageService } from './language.service';
@@ -12,6 +12,7 @@ import { LanguageService } from './language.service';
 export class EntitySelection {
   protected readonly documents = inject(DocumentService);
   protected readonly language = inject(LanguageService);
+  private readonly expandedCategories = signal<Record<string, boolean>>({});
   protected readonly groups = computed(() => {
     const entities = this.documents.analysis()?.entities ?? [];
     return [...new Set(entities.map((entity) => entity.type))].map((type) => {
@@ -22,4 +23,13 @@ export class EntitySelection {
   protected readonly allIds = computed(
     () => this.documents.analysis()?.entities.map((entity) => entity.id) ?? [],
   );
+
+  protected isCategoryOpen(type: string): boolean {
+    return this.expandedCategories()[type] ?? true;
+  }
+
+  protected toggleCategory(type: string): void {
+    const open = this.isCategoryOpen(type);
+    this.expandedCategories.update((categories) => ({ ...categories, [type]: !open }));
+  }
 }

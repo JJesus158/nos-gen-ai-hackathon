@@ -101,7 +101,7 @@ body::before {
   inset: -100px;
   z-index: -1;
   pointer-events: none;
-  background: url('/dataveil-background.png') center / cover no-repeat;
+  background: url('/dataveil-background.webp') center / cover no-repeat;
   opacity: 0.03;
 }
 [data-bs-theme='dark'] body::before {

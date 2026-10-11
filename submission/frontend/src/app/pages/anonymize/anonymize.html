@@ -189,27 +189,53 @@
           </h2>
           @if (pdfMappingAvailable() && !pdfPreviewFailed() && highlightedPdf()) {
             <div class="analysis-pdf-controls" role="toolbar" aria-label="PDF zoom controls">
-              <button type="button" (click)="zoomPreviewOut()" [disabled]="previewZoom() <= 0.5" aria-label="Zoom out">−</button>
-              <button type="button" (click)="resetPreviewZoom()" aria-label="Reset zoom">{{ (previewZoom() * 100).toFixed(0) }}%</button>
-              <button type="button" (click)="zoomPreviewIn()" [disabled]="previewZoom() >= 2.5" aria-label="Zoom in">+</button>
-              <button type="button" (click)="fitPreviewWidth()" aria-label="Fit PDF to width">↔</button>
-              <button type="button" (click)="fitPreviewHeight()" aria-label="Fit PDF to height">↕</button>
+              <button
+                type="button"
+                (click)="zoomPreviewOut()"
+                [disabled]="previewZoom() <= 0.5"
+                aria-label="Zoom out"
+              >
+                −
+              </button>
+              <button type="button" (click)="resetPreviewZoom()" aria-label="Reset zoom">
+                {{ (previewZoom() * 100).toFixed(0) }}%
+              </button>
+              <button
+                type="button"
+                (click)="zoomPreviewIn()"
+                [disabled]="previewZoom() >= 2.5"
+                aria-label="Zoom in"
+              >
+                +
+              </button>
+              <button type="button" (click)="fitPreviewWidth()" aria-label="Fit PDF to width">
+                ↔
+              </button>
+              <button type="button" (click)="fitPreviewHeight()" aria-label="Fit PDF to height">
+                ↕
+              </button>
             </div>
           }
           <span class="preview-file-name">{{ documents.file()?.name }}</span>
         </div>
         <div class="paper-scroll" role="region" aria-labelledby="preview-title" tabindex="0">
           @if (!pdfMappingAvailable() || pdfPreviewFailed()) {
-            <p class="small muted" role="status">{{ language.text().pdfMappingUnavailable }}</p>
+            @if (analysis.source === 'api') {
+              <p class="small muted" role="status">{{ language.text().pdfMappingUnavailable }}</p>
+            }
             <div class="paper">
               <div class="document-text analysis-text-preview">
                 @for (segment of documents.originalSegments(); track $index) {
                   @if (segment.sensitive) {
-                    <mark class="category-highlight"
+                    <mark
+                      class="category-highlight"
                       [class.is-selected]="documents.isSelected(segment.entityId!)"
                       [style.--category-color]="categoryDetails(segment.type!).color"
-                    >{{ segment.text }}</mark>
-                  } @else { <span>{{ segment.text }}</span> }
+                      >{{ segment.text }}</mark
+                    >
+                  } @else {
+                    <span>{{ segment.text }}</span>
+                  }
                 }
               </div>
             </div>
@@ -230,17 +256,18 @@
     <div class="page-actions">
       <div class="page-action-group">
         <button type="button" class="btn btn-outline-secondary" (click)="backToDocument()">
-        <svg
-          width="12"
-          height="12"
-          [attr.viewBox]="'0 0 ' + backIcon.icon[0] + ' ' + backIcon.icon[1]"
-          fill="currentColor"
-          aria-hidden="true"
-          focusable="false"
-        >
-          <path [attr.d]="backIcon.icon[4]" />
-        </svg>
-          {{ language.text().back }}</button>
+          <svg
+            width="12"
+            height="12"
+            [attr.viewBox]="'0 0 ' + backIcon.icon[0] + ' ' + backIcon.icon[1]"
+            fill="currentColor"
+            aria-hidden="true"
+            focusable="false"
+          >
+            <path [attr.d]="backIcon.icon[4]" />
+          </svg>
+          {{ language.text().back }}
+        </button>
       </div>
       <button
         type="button"

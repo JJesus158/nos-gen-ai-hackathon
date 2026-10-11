@@ -18,9 +18,15 @@
 }
 @if (fullSize() && showControls()) {
   <div class="pdf-controls" role="toolbar" aria-label="PDF zoom controls">
-    <button type="button" (click)="zoomOut()" [disabled]="zoom() <= 0.5" aria-label="Zoom out">−</button>
-    <button type="button" (click)="resetZoom()" aria-label="Reset zoom">{{ (zoom() * 100).toFixed(0) }}%</button>
-    <button type="button" (click)="zoomIn()" [disabled]="zoom() >= 2.5" aria-label="Zoom in">+</button>
+    <button type="button" (click)="zoomOut()" [disabled]="zoom() <= 0.5" aria-label="Zoom out">
+      −
+    </button>
+    <button type="button" (click)="resetZoom()" aria-label="Reset zoom">
+      {{ (zoom() * 100).toFixed(0) }}%
+    </button>
+    <button type="button" (click)="zoomIn()" [disabled]="zoom() >= 2.5" aria-label="Zoom in">
+      +
+    </button>
     <button type="button" (click)="zoom.set(1)" aria-label="Fit PDF to width">↔</button>
     <button type="button" (click)="zoom.set(0.5)" aria-label="Fit PDF to height">↕</button>
   </div>

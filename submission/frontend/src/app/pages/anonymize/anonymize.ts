@@ -49,8 +49,9 @@ export class Anonymize {
   protected readonly previewZoom = signal(1);
   protected readonly pdfMappingAvailable = computed(() => {
     const analysis = this.documents.analysis();
-    return analysis?.source === 'api' && analysis.entities.every(
-      (entity) => entityPdfBoxes(entity, analysis.originalText).length > 0,
+    return (
+      analysis?.source === 'api' &&
+      analysis.entities.every((entity) => entityPdfBoxes(entity, analysis.originalText).length > 0)
     );
   });
   protected readonly highlightedPdf = signal<Blob | null>(null);
@@ -66,15 +67,21 @@ export class Anonymize {
       const selectedIds = this.documents.selectedEntityIds();
       const mappingAvailable = this.pdfMappingAvailable();
       let cancelled = false;
-      onCleanup(() => { cancelled = true; });
+      onCleanup(() => {
+        cancelled = true;
+      });
       this.pdfPreviewFailed.set(false);
       if (!file || !analysis || !mappingAvailable) {
         this.highlightedPdf.set(null);
         return;
       }
       void createHighlightedPdf(file, analysis.entities, selectedIds, analysis.originalText)
-        .then((pdf) => { if (!cancelled) this.highlightedPdf.set(pdf); })
-        .catch(() => { if (!cancelled) this.pdfPreviewFailed.set(true); });
+        .then((pdf) => {
+          if (!cancelled) this.highlightedPdf.set(pdf);
+        })
+        .catch(() => {
+          if (!cancelled) this.pdfPreviewFailed.set(true);
+        });
     });
   }
 

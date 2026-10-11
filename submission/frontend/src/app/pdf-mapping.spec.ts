@@ -3,10 +3,21 @@ import type { DocumentEntity, PdfEntityBox } from './document-processor';
 
 describe('API PDF offset mapping', () => {
   const box = (start: number, end: number, x = 10): PdfEntityBox => ({
-    start, end, page: 1, x, y: 20, width: 30, height: 12,
+    start,
+    end,
+    page: 1,
+    x,
+    y: 20,
+    width: 30,
+    height: 12,
   });
   const entity = (start: number, end: number, boxes?: PdfEntityBox[]): DocumentEntity => ({
-    id: 'name', start, end, type: 'NAME', replacement: '*', boxes,
+    id: 'name',
+    start,
+    end,
+    type: 'NAME',
+    replacement: '*',
+    boxes,
   });
 
   it('keeps repeated occurrences distinct by their API offsets', () => {
@@ -18,7 +29,9 @@ describe('API PDF offset mapping', () => {
 
   it('rejects legacy first-word coordinates and incomplete multiword mappings', () => {
     const source = 'Nome: Ana Correia';
-    expect(entityPdfBoxes({ ...entity(6, 17), page: 1, x: 10, y: 20, width: 30, height: 12 }, source)).toEqual([]);
+    expect(
+      entityPdfBoxes({ ...entity(6, 17), page: 1, x: 10, y: 20, width: 30, height: 12 }, source),
+    ).toEqual([]);
     expect(entityPdfBoxes(entity(6, 17, [box(6, 9)]), source)).toEqual([]);
     expect(entityPdfBoxes(entity(6, 17, [box(6, 17)]), source)).toEqual([box(6, 17)]);
   });

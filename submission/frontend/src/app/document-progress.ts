@@ -19,10 +19,8 @@ export class DocumentProgress {
     'anonymizationStep',
     'resultsStep',
   ] as const;
-  protected readonly current = computed(
-    () => {
-      if (!this.documents.file() && this.documents.stage() === 'document') return 0;
-      return ['document', 'analysis', 'anonymization', 'results'].indexOf(this.documents.stage()) + 1;
-    },
-  );
+  protected readonly current = computed(() => {
+    if (!this.documents.file() && this.documents.stage() === 'document') return 0;
+    return ['document', 'analysis', 'anonymization', 'results'].indexOf(this.documents.stage()) + 1;
+  });
 }

@@ -19,31 +19,27 @@
         {{ language.text().selectAll }}
       </label>
       @for (group of groups(); track group.type) {
-        <details
+        <div
           class="category-group"
-          [open]="isCategoryOpen(group.type)"
+          [class.is-open]="isCategoryOpen(group.type)"
           [style.--category-color]="group.details.color"
         >
-          <summary class="category-heading">
-            <span
-              class="category-selection"
-            >
-              <input
-                #category
-                type="checkbox"
-                [checked]="documents.selectionState(group.ids) === 'all'"
-                [indeterminate]="documents.selectionState(group.ids) === 'some'"
-                [disabled]="documents.processing()"
-                (click)="$event.stopPropagation()"
-                (change)="documents.setEntities(group.ids, category.checked)"
-              />
-            </span>
+          <div class="category-heading">
+            <input
+              #category
+              type="checkbox"
+              [attr.aria-label]="language.text()[group.details.labelKey]"
+              [checked]="documents.selectionState(group.ids) === 'all'"
+              [indeterminate]="documents.selectionState(group.ids) === 'some'"
+              [disabled]="documents.processing()"
+              (change)="documents.setEntities(group.ids, category.checked)"
+            />
             <button
               type="button"
               class="category-toggle"
-              [attr.aria-label]="language.text()[group.details.labelKey]"
               [attr.aria-expanded]="isCategoryOpen(group.type)"
-              (click)="$event.preventDefault(); $event.stopPropagation(); toggleCategory(group.type)"
+              [attr.aria-controls]="'category-items-' + group.type"
+              (click)="toggleCategory(group.type)"
             >
               <span class="category-icon" aria-hidden="true">
                 <svg
@@ -60,8 +56,12 @@
               <span class="category-count muted" aria-hidden="true">{{ group.items.length }}</span>
               <span class="category-chevron" aria-hidden="true"></span>
             </button>
-          </summary>
-          <div class="category-items">
+          </div>
+          <div
+            class="category-items"
+            [id]="'category-items-' + group.type"
+            [attr.inert]="isCategoryOpen(group.type) ? null : ''"
+          >
             <div>
               @for (entity of group.items; track entity.id) {
                 <label class="entity-option">
@@ -85,7 +85,7 @@
               }
             </div>
           </div>
-        </details>
+        </div>
       }
     } @else {
       <p class="empty-entities muted small">{{ language.text().noEntities }}</p>

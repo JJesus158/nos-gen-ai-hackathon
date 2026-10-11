@@ -1,6 +1,14 @@
 import { DOCUMENT } from '@angular/common';
 import {
-  ChangeDetectionStrategy, Component, ElementRef, effect, inject, input, signal, viewChild,
+  ChangeDetectionStrategy,
+  Component,
+  ElementRef,
+  effect,
+  inject,
+  input,
+  output,
+  signal,
+  viewChild,
 } from '@angular/core';
 import { faFilePdf } from '@fortawesome/free-solid-svg-icons';
 import type { PDFDocumentLoadingTask, PDFPageProxy, RenderTask } from 'pdfjs-dist';
@@ -22,7 +30,10 @@ interface RenderedPage {
   changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class PdfPreview {
-  readonly file = input.required<Blob>();
+  /** Null until the parent has a file: nothing is rendered and nothing is reported. */
+  readonly file = input<Blob | null>(null);
+  /** The file could not be rendered as a PDF; the parent may show its text instead. */
+  readonly unavailable = output<void>();
   readonly fullSize = input(false);
   readonly highlights = input<readonly DocumentEntity[]>([]);
   readonly sourceText = input('');
@@ -44,7 +55,7 @@ export class PdfPreview {
       const container = this.pages()?.nativeElement;
       const fullSize = this.fullSize();
       const zoom = this.zoomLevel() * this.zoom();
-      if (!container) return;
+      if (!container || !file) return;
 
       let cancelled = false;
       let loading: PDFDocumentLoadingTask | undefined;
@@ -69,7 +80,10 @@ export class PdfPreview {
         try {
           const [pdf, data] = await Promise.all([import('pdfjs-dist'), file.arrayBuffer()]);
           if (cancelled) return;
-          pdf.GlobalWorkerOptions.workerSrc = new URL('pdf.worker.min.mjs', this.document.baseURI).href;
+          pdf.GlobalWorkerOptions.workerSrc = new URL(
+            'pdf.worker.min.mjs',
+            this.document.baseURI,
+          ).href;
           loading = pdf.getDocument({ data: new Uint8Array(data) });
           const document = await loading.promise;
           if (cancelled) return;
@@ -121,7 +135,10 @@ export class PdfPreview {
           this.rendered.set(true);
           this.state.set('ready');
         } catch {
-          if (!cancelled) this.state.set('unavailable');
+          if (!cancelled) {
+            this.state.set('unavailable');
+            this.unavailable.emit();
+          }
         } finally {
           release();
         }
@@ -170,10 +187,22 @@ export class PdfPreview {
     });
   }
 
-  zoomIn(): void { this.zoom.update((value) => Math.min(2.5, value + 0.25)); }
-  zoomOut(): void { this.zoom.update((value) => Math.max(0.5, value - 0.25)); }
-  resetZoom(): void { this.zoom.set(1); }
-  zoomPercent(): string { return (this.zoom() * 100).toFixed(0) + '%'; }
-  fitWidth(): void { this.zoom.set(1); }
-  fitHeight(): void { this.zoom.set(0.5); }
+  zoomIn(): void {
+    this.zoom.update((value) => Math.min(2.5, value + 0.25));
+  }
+  zoomOut(): void {
+    this.zoom.update((value) => Math.max(0.5, value - 0.25));
+  }
+  resetZoom(): void {
+    this.zoom.set(1);
+  }
+  zoomPercent(): string {
+    return (this.zoom() * 100).toFixed(0) + '%';
+  }
+  fitWidth(): void {
+    this.zoom.set(1);
+  }
+  fitHeight(): void {
+    this.zoom.set(0.5);
+  }
 }

@@ -33,8 +33,9 @@ def page_textpage(page: pymupdf.Page) -> Optional[pymupdf.TextPage]:
     same words in the same places.
     """
     text = page.get_text("text")
-    # Keep this helper compatible with lightweight page doubles used by tests.
-    if not isinstance(text, str) or text.strip() or not hasattr(page, "get_images"):
+    # Also accepts the lightweight page doubles the tests use.
+    if (not isinstance(text, str) or text.strip()
+            or not hasattr(page, "get_images")):
         return None
     if not page.get_images():
         return None
@@ -98,8 +99,9 @@ def _extract_layout(document: pymupdf.Document) -> ExtractedDocument:
             flags=pymupdf.TEXTFLAGS_TEXT,
             textpage=page_textpage(page),
         )
-        # PyMuPDF's transform for rotated crop boxes is relative to the crop
-        # area. Resolve it unrotated so the API always returns native PDF units.
+        # PyMuPDF's transform for rotated crop boxes is relative to the
+        # crop area. Resolve it unrotated so the API always returns
+        # native PDF units.
         rotation = page.rotation
         try:
             page.set_rotation(0)
@@ -110,7 +112,9 @@ def _extract_layout(document: pymupdf.Document) -> ExtractedDocument:
             if block["type"] != 0:
                 continue
             for line in block["lines"]:
-                chars = [char for span in line["spans"] for char in span["chars"]]
+                chars = [
+                    char for span in line["spans"] for char in span["chars"]
+                ]
                 value = "".join(char["c"] for char in chars).rstrip()
                 if not value.strip():
                     continue

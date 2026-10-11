@@ -10,7 +10,8 @@ from anonymizer.extract import extract_layout_from_bytes
 from anonymizer.spans import Category, Span
 from api import main
 
-SAMPLE = Path(__file__).resolve().parents[3] / 'raw_data/document_to_anonymize.pdf'
+SAMPLE = (Path(__file__).resolve().parents[3]
+          / 'raw_data/document_to_anonymize.pdf')
 
 
 def utf16(value):
@@ -25,21 +26,23 @@ def range_for(text, value, after=0):
 def box_text(document, box):
     page = document[box['page'] - 1]
     rect = pymupdf.Rect(box['x'], box['y'],
-                       box['x'] + box['width'], box['y'] + box['height'])
+                        box['x'] + box['width'], box['y'] + box['height'])
     return page.get_textbox(rect * page.transformation_matrix).strip()
 
 
-def test_sample_text_is_unchanged_and_every_visible_character_has_an_offset():
+def test_sample_text_unchanged_and_every_visible_character_has_offset():
     layout = extract_layout_from_bytes(SAMPLE.read_bytes())
     with pymupdf.open(SAMPLE) as document:
         previous_text = '\n'.join(
             line.rstrip() for page in document
-            for line in page.get_text('text', sort=False).split('\n') if line.strip()
+            for line in page.get_text('text', sort=False).split('\n')
+            if line.strip()
         )
     assert layout.text == previous_text
     encoded = layout.text.encode('utf-16-le')
     for char in layout.characters:
-        assert encoded[char.start * 2:char.end * 2].decode('utf-16-le') == char.text
+        piece = encoded[char.start * 2:char.end * 2].decode('utf-16-le')
+        assert piece == char.text
         if not char.text.isspace():
             assert layout.boxes_for(char.start, char.end)
 
@@ -49,11 +52,14 @@ def test_sample_text_is_unchanged_and_every_visible_character_has_an_offset():
     '12345678-9ZX0', 'Rua das Flores, 123, Apt 45, Sacavém, Lisboa',
     '+351 912 345 678', 'maria.santos@emailpessoal.pt', '11223344556',
 ])
-def test_api_sample_boxes_cover_the_exact_value_not_its_first_word(monkeypatch, value):
+def test_api_sample_boxes_cover_the_exact_value_not_its_first_word(
+        monkeypatch, value):
     layout = extract_layout_from_bytes(SAMPLE.read_bytes())
     start, end = range_for(layout.text, value)
     line = layout.text[:layout.text.index(value)].count('\n') + 1
-    monkeypatch.setattr(detector, 'detect', lambda text: [Span(line, value, Category.ID, '')])
+    monkeypatch.setattr(
+        detector, 'detect', lambda text: [Span(line, value, Category.ID, '')],
+    )
     response = TestClient(main.app).post('/api/documents/analyze', files={
         'file': ('sample.pdf', SAMPLE.read_bytes(), 'application/pdf'),
     })
@@ -67,7 +73,7 @@ def test_api_sample_boxes_cover_the_exact_value_not_its_first_word(monkeypatch, 
         assert box_text(document, box) == value
 
 
-def test_identical_values_on_same_line_different_lines_and_pages_are_distinct():
+def test_identical_values_on_same_line_other_lines_and_pages_differ():
     with pymupdf.open() as document:
         page = document.new_page()
         page.insert_text((72, 72), 'Nome: Ana; Contacto: Ana')
@@ -91,8 +97,10 @@ def test_multiline_field_has_separate_boxes_and_preserves_punctuation():
         page.insert_text((72, 72), 'Morada: Rua Nova, 12')
         page.insert_text((72, 100), 'Lisboa')
         layout = extract_layout_from_bytes(document.tobytes())
-        boxes = layout.boxes_for(*range_for(layout.text, 'Rua Nova, 12\nLisboa'))
-        assert [box_text(document, box) for box in boxes] == ['Rua Nova, 12', 'Lisboa']
+        boxes = layout.boxes_for(
+            *range_for(layout.text, 'Rua Nova, 12\nLisboa'))
+        assert [box_text(document, box) for box in boxes] == [
+            'Rua Nova, 12', 'Lisboa']
         assert boxes[0]['end'] + 1 == boxes[1]['start']
 
 
@@ -112,7 +120,7 @@ def test_cropped_rotated_pages_use_native_pdf_coordinates(rotation):
         assert box_text(document, box) == 'Ana'
 
 
-def test_unicode_offsets_include_two_utf16_units_for_non_bmp_characters():
+def test_unicode_offsets_count_two_utf16_units_for_non_bmp_characters():
     # A rawdict glyph can contain a supplementary Unicode character. Verify the
     # extractor retains JS offsets instead of indexing that string as Python.
     from anonymizer.extract import _extract_layout
@@ -133,4 +141,5 @@ def test_unicode_offsets_include_two_utf16_units_for_non_bmp_characters():
     layout = _extract_layout([Page()])
     assert layout.text == '😀 Nome: João'
     box, = layout.boxes_for(9, 13)
-    assert (box['start'], box['end'], box['x'], box['width']) == (9, 13, 80, 40)
+    assert (box['start'], box['end'], box['x'], box['width']) == (
+        9, 13, 80, 40)

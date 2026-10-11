@@ -25,13 +25,11 @@ export class EntitySelection {
   );
 
   protected isCategoryOpen(type: string): boolean {
-    return this.expandedCategories()[type] ?? false;
+    return this.expandedCategories()[type] ?? true;
   }
 
   protected toggleCategory(type: string): void {
-    this.expandedCategories.update((categories) => ({
-      ...categories,
-      [type]: !categories[type],
-    }));
+    const open = this.isCategoryOpen(type);
+    this.expandedCategories.update((categories) => ({ ...categories, [type]: !open }));
   }
 }

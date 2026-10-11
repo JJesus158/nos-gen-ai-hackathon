@@ -1,10 +1,4 @@
-import {
-  ChangeDetectionStrategy,
-  Component,
-  HostListener,
-  inject,
-  signal,
-} from '@angular/core';
+import { ChangeDetectionStrategy, Component, HostListener, inject, signal } from '@angular/core';
 import { RouterLink, RouterOutlet } from '@angular/router';
 import { faMoon, faSun } from '@fortawesome/free-solid-svg-icons';
 import { LanguageService } from './language.service';

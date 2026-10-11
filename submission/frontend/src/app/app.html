@@ -48,9 +48,11 @@
           aria-haspopup="listbox"
           (click)="toggleLanguageMenu()"
         >
-          <span class="language-flag" aria-hidden="true">{{
-            language.preference() === 'en' ? '🇬🇧' : '🇵🇹'
-          }}</span>
+          <img
+            class="language-flag"
+            [src]="language.preference() === 'en' ? 'flags/gb.svg' : 'flags/pt.svg'"
+            alt=""
+          />
           <span>{{
             language.preference() === 'en' ? language.text().english : language.text().portuguese
           }}</span>
@@ -66,7 +68,7 @@
               [attr.aria-selected]="language.preference() === 'en'"
               (click)="setLanguage('en')"
             >
-              <span class="language-flag" aria-hidden="true">🇬🇧</span>
+              <img class="language-flag" src="flags/gb.svg" alt="" />
               <span>{{ language.text().english }}</span>
             </button>
             <button
@@ -77,7 +79,7 @@
               [attr.aria-selected]="language.preference() === 'pt-PT'"
               (click)="setLanguage('pt-PT')"
             >
-              <span class="language-flag" aria-hidden="true">🇵🇹</span>
+              <img class="language-flag" src="flags/pt.svg" alt="" />
               <span>{{ language.text().portuguese }}</span>
             </button>
           </div>

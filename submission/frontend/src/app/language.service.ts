@@ -40,7 +40,8 @@ const en = {
   firstPagePreview: 'First page preview',
   previewLoading: 'Loading preview…',
   previewUnavailable: 'Preview unavailable',
-  pdfMappingUnavailable: 'PDF highlights are unavailable for this analysis. Showing the analyzed text; analyze the document again to refresh its PDF positions.',
+  pdfMappingUnavailable:
+    'PDF highlights are unavailable for this analysis. Showing the analyzed text; analyze the document again to refresh its PDF positions.',
   sampleDocument: 'Example document',
   entities: 'Personal data',
   identifiedEntities: 'Identified items',
@@ -126,7 +127,8 @@ const pt: typeof en = {
   firstPagePreview: 'Pré-visualização da primeira página',
   previewLoading: 'A carregar pré-visualização…',
   previewUnavailable: 'Pré-visualização indisponível',
-  pdfMappingUnavailable: 'Os destaques no PDF não estão disponíveis nesta análise. A mostrar o texto analisado; analise novamente o documento para atualizar as posições no PDF.',
+  pdfMappingUnavailable:
+    'Os destaques no PDF não estão disponíveis nesta análise. A mostrar o texto analisado; analise novamente o documento para atualizar as posições no PDF.',
   sampleDocument: 'Documento de exemplo',
   entities: 'Dados pessoais',
   identifiedEntities: 'Elementos identificados',

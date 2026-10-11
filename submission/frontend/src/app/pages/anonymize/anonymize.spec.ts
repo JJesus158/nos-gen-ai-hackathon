@@ -809,7 +809,12 @@ describe('PDF selection', () => {
       expect(title(root)).toBe('Readable summary');
       expect((await papers(fixture))[1]).toBe(summary);
       expect(root.querySelector('.protected-panel .paper-brand')!.textContent).toBe(
-        'Written from the anonymized text only. Hidden data is never sent.',
+        'Written from the anonymized text only; the hidden data is not sent to create the summary.',
+      );
+      // The keyboard lands on the summary's switch, and the status says it is ready.
+      expect(document.activeElement!.textContent!.trim()).toBe('Summary');
+      expect(root.querySelector('.protected-panel [role="status"]')!.textContent!.trim()).toBe(
+        'Summary ready',
       );
       const options = root.querySelectorAll<HTMLButtonElement>('.view-option');
       expect(Array.from(options, (option) => option.textContent!.trim())).toEqual([
@@ -844,6 +849,13 @@ describe('PDF selection', () => {
       await fixture.whenStable();
       expect(title(root)).toBe('Resumo legível');
       expect((await papers(fixture))[1]).toBe(summary);
+      // The summary is in English now: it is offered again, beside the switch.
+      expect(root.querySelector('.view-switch')).not.toBeNull();
+      expect(summarizeButton(root)!.textContent).toContain('Resumir');
+      summarizeButton(root)!.click();
+      await settle(fixture);
+      expect(documents.summary()).toContain('Ficha de acompanhamento');
+      expect(summarizeButton(root)).toBeNull();
 
       root.querySelector<HTMLButtonElement>('.page-actions .btn-outline-secondary')!.click();
       await settle(fixture);

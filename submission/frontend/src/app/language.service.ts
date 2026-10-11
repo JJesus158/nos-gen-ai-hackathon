@@ -114,7 +114,9 @@ const en = {
   maskedView: 'Masked text',
   summaryView: 'Summary',
   viewLabel: 'View',
-  summaryNote: 'Written from the anonymized text only. Hidden data is never sent.',
+  summaryNote:
+    'Written from the anonymized text only; the hidden data is not sent to create the summary.',
+  summaryReady: 'Summary ready',
   summaryError: 'The summary could not be generated. Please try again.',
   downloadSummary: 'Download summary',
 };
@@ -230,7 +232,9 @@ const pt: typeof en = {
   maskedView: 'Texto mascarado',
   summaryView: 'Resumo',
   viewLabel: 'Vista',
-  summaryNote: 'Escrito apenas a partir do texto anonimizado. Os dados ocultos nunca são enviados.',
+  summaryNote:
+    'Escrito apenas a partir do texto anonimizado; os dados ocultos não são enviados para criar o resumo.',
+  summaryReady: 'Resumo pronto',
   summaryError: 'Não foi possível gerar o resumo. Tente novamente.',
   downloadSummary: 'Descarregar resumo',
 };

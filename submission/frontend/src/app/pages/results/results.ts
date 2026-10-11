@@ -1,11 +1,15 @@
 import {
+  afterNextRender,
   ChangeDetectionStrategy,
   Component,
   computed,
   effect,
+  ElementRef,
+  Injector,
   inject,
   output,
   signal,
+  viewChild,
 } from '@angular/core';
 import { DocumentService } from '../../document.service';
 import { LanguageService } from '../../language.service';
@@ -42,6 +46,16 @@ export class Results {
   );
   /** What the "Anonymized" panel shows once a summary exists. */
   protected readonly view = signal<'masked' | 'summary'>('masked');
+  /** For the status region: "Summary ready" once it arrives. */
+  protected readonly announcement = signal('');
+  /** A summary exists, but the interface language changed since: offer it again. */
+  protected readonly summaryOutdated = computed(
+    () =>
+      this.documents.summary() !== null &&
+      this.documents.summaryLanguage() !== this.language.preference(),
+  );
+  private readonly injector = inject(Injector);
+  private readonly summaryOption = viewChild<ElementRef<HTMLButtonElement>>('summaryOption');
 
   constructor() {
     effect((onCleanup) => {
@@ -68,7 +82,14 @@ export class Results {
   }
 
   protected async summarize(): Promise<void> {
-    if (await this.documents.summarize(this.language.preference())) this.view.set('summary');
+    this.announcement.set('');
+    if (!(await this.documents.summarize(this.language.preference()))) return;
+    this.view.set('summary');
+    this.announcement.set(this.language.text().summaryReady);
+    // The button that opened it is gone: keep the keyboard on the summary's switch.
+    afterNextRender(() => this.summaryOption()?.nativeElement.focus({ preventScroll: true }), {
+      injector: this.injector,
+    });
   }
 
   protected download(): void {

@@ -171,7 +171,7 @@ def summarize(analysis_id: str, body: SummarizeIn) -> SummaryOut:
     analysis, spans, ranges = _selection(analysis_id, body)
     masked = masker.mask_with_positions(analysis.text, spans, ranges=ranges)
     try:
-        summary = summarizer.summarize(masked, body.language)
+        summary = summarizer.summarize(masked, body.language, spans)
     except Exception:
         log.exception("summary failed")
         raise HTTPException(500, "Summary failed")

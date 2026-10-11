@@ -622,11 +622,13 @@ describe('Document selection workflow', () => {
     pending.resolve('Um registo com dois dados ocultos.');
     expect(await request).toBeTrue();
     expect(documents.summary()).toBe('Um registo com dois dados ocultos.');
+    expect(documents.summaryLanguage()).toBe('pt-PT');
     expect(documents.summarizing()).toBeFalse();
     expect(documents.summaryError()).toBeFalse();
     expect(processor.summarize).toHaveBeenCalledTimes(1);
     documents.returnToReview();
     expect(documents.summary()).toBeNull();
+    expect(documents.summaryLanguage()).toBeNull();
     await documents.anonymize();
     expect(documents.summary()).toBeNull();
   });

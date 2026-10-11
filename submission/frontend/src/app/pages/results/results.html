@@ -61,6 +61,7 @@
                 {{ language.text().maskedView }}
               </button>
               <button
+                #summaryOption
                 type="button"
                 class="view-option"
                 [class.is-selected]="view() === 'summary'"
@@ -70,7 +71,8 @@
                 {{ language.text().summaryView }}
               </button>
             </div>
-          } @else {
+          }
+          @if (documents.summary() === null || summaryOutdated()) {
             <button
               type="button"
               class="btn btn-primary btn-sm summarize-button"
@@ -154,7 +156,7 @@
           </div>
         }
         <span class="visually-hidden" role="status">{{
-          documents.summarizing() ? language.text().summarizing : ''
+          documents.summarizing() ? language.text().summarizing : announcement()
         }}</span>
       </section>
     </div>

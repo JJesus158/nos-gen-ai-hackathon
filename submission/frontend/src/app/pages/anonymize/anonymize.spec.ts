@@ -229,18 +229,18 @@ describe('PDF selection', () => {
     const first = root.querySelector<HTMLInputElement>('[data-entity-id="name-1"]')!;
     const second = root.querySelector<HTMLInputElement>('[data-entity-id="name-2"]')!;
     expect(all.checked).toBeTrue();
-    // Categories start open; the toggle collapses one and makes its items inert.
+    // Categories start closed; the toggle opens one and keeps the other collapsed.
     const toggle = root.querySelector<HTMLButtonElement>('.category-toggle')!;
-    expect(root.querySelectorAll('.category-group.is-open').length).toBe(2);
-    expect(toggle.getAttribute('aria-expanded')).toBe('true');
+    expect(root.querySelectorAll('.category-group.is-open').length).toBe(0);
+    expect(toggle.getAttribute('aria-expanded')).toBe('false');
     toggle.click();
     await fixture.whenStable();
     expect(root.querySelectorAll('.category-group.is-open').length).toBe(1);
-    expect(toggle.getAttribute('aria-expanded')).toBe('false');
+    expect(toggle.getAttribute('aria-expanded')).toBe('true');
     expect(root.querySelector('.category-items[inert]')).not.toBeNull();
     toggle.click();
     await fixture.whenStable();
-    expect(root.querySelectorAll('.category-group.is-open').length).toBe(2);
+    expect(root.querySelectorAll('.category-group.is-open').length).toBe(0);
     first.click();
     await fixture.whenStable();
     expect(documents.selectedEntityIds()).toEqual(['name-2', 'id-1']);

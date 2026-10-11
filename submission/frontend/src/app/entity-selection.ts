@@ -37,7 +37,7 @@ export class EntitySelection {
   private readonly region = viewChild.required<ElementRef<HTMLElement>>('region');
 
   protected isCategoryOpen(type: string): boolean {
-    return this.expandedCategories()[type] ?? true;
+    return this.expandedCategories()[type] ?? false;
   }
 
   protected toggleCategory(type: string): void {

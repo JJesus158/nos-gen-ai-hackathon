@@ -56,54 +56,6 @@
           <h2 id="anonymized-title">
             {{ view() === 'summary' ? language.text().summaryTitle : language.text().anonymized }}
           </h2>
-          @if (documents.summary() !== null) {
-            <div class="view-switch" role="group" [attr.aria-label]="language.text().viewLabel">
-              <button
-                type="button"
-                class="view-option"
-                [class.is-selected]="view() === 'masked'"
-                [attr.aria-pressed]="view() === 'masked'"
-                (click)="view.set('masked')"
-              >
-                {{ language.text().maskedView }}
-              </button>
-              <button
-                #summaryOption
-                type="button"
-                class="view-option"
-                [class.is-selected]="view() === 'summary'"
-                [attr.aria-pressed]="view() === 'summary'"
-                (click)="view.set('summary')"
-              >
-                {{ language.text().summaryView }}
-              </button>
-            </div>
-          }
-          @if (documents.summary() === null || summaryOutdated()) {
-            <button
-              type="button"
-              class="btn btn-primary btn-sm summarize-button"
-              [disabled]="documents.summarizing()"
-              (click)="summarize()"
-            >
-              @if (documents.summarizing()) {
-                <span class="spinner-border spinner-border-sm" aria-hidden="true"></span>
-                {{ language.text().summarizing }}
-              } @else {
-                <svg
-                  width="12"
-                  height="12"
-                  [attr.viewBox]="'0 0 ' + summarizeIcon.icon[0] + ' ' + summarizeIcon.icon[1]"
-                  fill="currentColor"
-                  aria-hidden="true"
-                  focusable="false"
-                >
-                  <path [attr.d]="summarizeIcon.icon[4]" />
-                </svg>
-                {{ language.text().summarize }}
-              }
-            </button>
-          }
           <span class="preview-file-name">{{
             savesSummary() ? summaryName() : result.download.name
           }}</span>
@@ -146,29 +98,75 @@
             </div>
           }
         </div>
-        @if (view() !== 'summary' && resultIsPdf() && !resultPreviewFailed()) {
-          <div class="mask-controls" role="group" [attr.aria-label]="language.text().maskMode">
+        <div class="mask-controls" role="group" [attr.aria-label]="language.text().maskMode">
+          @if (resultIsPdf() && !resultPreviewFailed()) {
             <span class="mask-label">{{ language.text().maskMode }}</span>
             <button
               type="button"
               class="mask-option"
-              [class.is-selected]="maskMode() === 'asterisk'"
-              [attr.aria-pressed]="maskMode() === 'asterisk'"
-              (click)="maskMode.set('asterisk')"
+              [class.is-selected]="view() !== 'summary' && maskMode() === 'asterisk'"
+              [attr.aria-pressed]="view() !== 'summary' && maskMode() === 'asterisk'"
+              (click)="showMasked('asterisk')"
             >
               {{ language.text().asterisks }}
             </button>
             <button
               type="button"
               class="mask-option"
-              [class.is-selected]="maskMode() === 'boxes'"
-              [attr.aria-pressed]="maskMode() === 'boxes'"
-              (click)="maskMode.set('boxes')"
+              [class.is-selected]="view() !== 'summary' && maskMode() === 'boxes'"
+              [attr.aria-pressed]="view() !== 'summary' && maskMode() === 'boxes'"
+              (click)="showMasked('boxes')"
             >
               {{ language.text().boxes }}
             </button>
-          </div>
-        }
+          }
+          @if (documents.summary() !== null && !summaryOutdated()) {
+            <button
+              #summaryOption
+              type="button"
+              class="mask-option summarize-button"
+              [class.is-selected]="view() === 'summary'"
+              [attr.aria-pressed]="view() === 'summary'"
+              (click)="view.set('summary')"
+            >
+              {{ language.text().summaryView }}
+              <svg
+                width="12"
+                height="12"
+                [attr.viewBox]="'0 0 ' + summarizeIcon.icon[0] + ' ' + summarizeIcon.icon[1]"
+                fill="currentColor"
+                aria-hidden="true"
+                focusable="false"
+              >
+                <path [attr.d]="summarizeIcon.icon[4]" />
+              </svg>
+            </button>
+          } @else {
+            <button
+              type="button"
+              class="mask-option summarize-button"
+              [disabled]="documents.summarizing()"
+              (click)="summarize()"
+            >
+              @if (documents.summarizing()) {
+                <span class="spinner-border spinner-border-sm" aria-hidden="true"></span>
+                {{ language.text().summarizing }}
+              } @else {
+                {{ language.text().summarize }}
+                <svg
+                  width="12"
+                  height="12"
+                  [attr.viewBox]="'0 0 ' + summarizeIcon.icon[0] + ' ' + summarizeIcon.icon[1]"
+                  fill="currentColor"
+                  aria-hidden="true"
+                  focusable="false"
+                >
+                  <path [attr.d]="summarizeIcon.icon[4]" />
+                </svg>
+              }
+            </button>
+          }
+        </div>
         <span class="visually-hidden" role="status">{{
           documents.summarizing() ? language.text().summarizing : announcement()
         }}</span>
@@ -194,22 +192,12 @@
         <button type="button" class="btn btn-outline-secondary" (click)="restart.emit()">
           {{ language.text().chooseAnother }}
         </button>
-        <!-- The main button saves what the panel shows; the other file is beside it. -->
-        @if (documents.summary() !== null) {
-          <button
-            type="button"
-            class="btn btn-outline-secondary"
-            (click)="savesSummary() ? download() : downloadSummary()"
-          >
-            {{ savesSummary() ? language.text().download : language.text().downloadSummary }}
-          </button>
-        }
         <button
           type="button"
           class="btn btn-primary"
-          (click)="savesSummary() ? downloadSummary() : download()"
+          (click)="download()"
         >
-          {{ savesSummary() ? language.text().downloadSummary : language.text().download }}
+          {{ language.text().download }}
           <svg
             width="12"
             height="12"

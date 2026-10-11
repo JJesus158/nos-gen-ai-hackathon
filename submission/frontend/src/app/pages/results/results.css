@@ -70,6 +70,28 @@
   gap: 6px;
   padding: 4px 10px;
   font-size: 0.72rem;
+  margin-left: 0;
+  color: #fff;
+  background: #0d6efd;
+  border-color: #0d6efd;
+}
+.summarize-button.is-selected {
+  color: #fff;
+  background: #0d6efd;
+  border-color: #0d6efd;
+}
+.summarize-button:hover,
+.summarize-button.is-selected:hover {
+  color: #fff;
+  background: #0b5ed7;
+  border-color: #0a58ca;
+}
+.summarize-button svg {
+  flex-shrink: 0;
+}
+.summarize-button:disabled {
+  cursor: wait;
+  opacity: 0.65;
 }
 /* Masked text or its summary: a small segmented control in the heading. */
 .view-switch {

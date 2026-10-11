@@ -183,7 +183,7 @@
       tabindex="0"
     >
       <section class="panel preview-panel">
-        <div class="panel-heading preview-heading">
+        <div class="panel-heading preview-heading" [class.is-text-view]="!showPdf()">
           <div class="preview-heading-main">
             @if (pdfViewAvailable()) {
               <div

@@ -139,7 +139,6 @@
   line-height: 1.25;
 }
 .preview-heading {
-  box-sizing: border-box;
   display: grid;
   grid-template-columns: minmax(0, 1fr) max-content minmax(0, 1fr);
   align-items: center;
@@ -215,8 +214,11 @@
     grid-template-columns: minmax(0, 1fr);
     row-gap: 4px;
     height: 92px;
-    min-height: 92px;
-    padding: 5px 12px 8px;
+    padding: 5px 8px 8px;
+  }
+  .preview-heading.is-text-view {
+    height: 64px;
+    padding: 5px 8px 6px;
   }
   .preview-heading-main {
     grid-column: 1 / -1;

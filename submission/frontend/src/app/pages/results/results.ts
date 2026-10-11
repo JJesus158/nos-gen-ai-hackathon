@@ -105,8 +105,17 @@ export class Results {
     });
   }
 
+  protected showMasked(mode: 'boxes' | 'asterisk'): void {
+    this.maskMode.set(mode);
+    this.view.set('masked');
+  }
+
   /** The protected document, with the grey boxes when that mode is shown. */
   protected download(): void {
+    if (this.savesSummary()) {
+      this.downloadSummary();
+      return;
+    }
     const result = this.documents.result();
     if (!result) return;
     const boxed = this.maskMode() === 'boxes' ? this.boxedPdf() : null;

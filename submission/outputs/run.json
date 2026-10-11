@@ -1,8 +1,8 @@
 {
-  "model": "gemini-3.5-flash-lite",
+  "model": "gemini-3.8-flash",
   "prompt_file": "prompt.txt",
   "prompt_sha256": "2466d75f189b8622938c8600e985d0d5da2a370704f6bcf5ca477588f133c0dc",
   "document_sha256": "5a1f06ac025513b8ba474bb6e779597d502ec320f81e437926beb00f43cceeeb",
   "document_lines": 60,
-  "created_at": "2026-10-11T01:05:27+00:00"
+  "created_at": "2026-10-11T11:01:09+00:00"
 }

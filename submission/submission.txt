@@ -12,20 +12,20 @@ Telefone: * * * *
 Email: *
 Número da Segurança Social: *
 Histórico Médico:
-A paciente * *, mulher * de * anos, compareceu à consulta relatando *
-* *. Tem histórico de * e * * *, diagnosticada há 5 anos. É
-* * desde *, atualmente com * * * graças ao tratamento com
+A paciente * *, * * de * anos, compareceu à consulta relatando *
+* *. Tem histórico de * e * * *, * * * *. É
+* * * *, atualmente com * * * graças ao tratamento com
 *.
 A paciente relatou que sua família tem histórico de * * * (* falecida aos * anos)
-e * * (* e * *). Exames genéticos realizados em * indicaram
+e * * (* e * *). * * * * * indicaram
 * * * * * (* * *).
 Informações Sociais e Comportamentais:
 Estado civil: *
-Filhos: 2 (*, * anos e *, * anos)
-Religião: * praticante
+Filhos: * (*, * anos e *, * anos)
+Religião: * *
 Ocupação: * * na * * * * *
-Hábitos: * (parou há 3 anos), * * * (* * * *)
-Histórico de uso de substâncias: Tratamento para * * * em *
+Hábitos: * (* * * *), * * * (* * * *)
+Histórico de uso de substâncias: * * * * * * *
 Informações Financeiras:
 Seguro de saúde: * * * *, apólice nº *
 Número do cartão de crédito: * * * * (validade *, CVV *)
@@ -39,7 +39,7 @@ Tipo sanguíneo: *
 Pressão arterial na admissão: * mmHg
 Notas da Consulta:
 A paciente apresentou-se * durante a consulta, relatando * * *
-relativamente à * * * * que adquiriu. * * *, *,
+relativamente à elevada carga de responsabilidades que adquiriu. * * *, *,
 e * * foram ditos fazer parte do seu dia-a-dia, no entanto, apresenta * *
 * * * * * *.
 Exames solicitados: * *, * * *, * *, * * *

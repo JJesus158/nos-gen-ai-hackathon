@@ -50,6 +50,7 @@ export class Anonymize {
   protected readonly dragging = signal(false);
   protected readonly previewZoom = signal(1);
   protected readonly previewFit = signal<'width' | 'height'>('width');
+  protected readonly previewMode = signal<'pdf' | 'text'>('pdf');
   protected readonly pdfMappingAvailable = computed(() => {
     const analysis = this.documents.analysis();
     return (

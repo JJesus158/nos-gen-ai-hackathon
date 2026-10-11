@@ -1,13 +1,15 @@
-import { ChangeDetectionStrategy, Component, computed, inject, output, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, effect, inject, output, signal } from '@angular/core';
 import { DocumentService } from '../../document.service';
 import { LanguageService } from '../../language.service';
 import { DocumentProgress } from '../../document-progress';
 import { faArrowLeft, faDownload } from '@fortawesome/free-solid-svg-icons';
 import { categoryDetails } from '../../document-categories';
+import { PdfPreview } from '../../pdf-preview';
+import { createBlurredPreviewPdf } from '../../pdf-highlight';
 
 @Component({
   selector: 'app-results',
-  imports: [DocumentProgress],
+  imports: [DocumentProgress, PdfPreview],
   templateUrl: './results.html',
   styleUrl: './results.css',
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -21,6 +23,23 @@ export class Results {
   protected readonly backIcon = faArrowLeft;
   protected readonly categoryDetails = categoryDetails;
   protected readonly maskMode = signal<'blur' | 'asterisk'>('blur');
+  protected readonly blurredPreviewPdf = signal<Blob | null>(null);
+
+  constructor() {
+    effect((onCleanup) => {
+      const result = this.documents.result();
+      const source = this.documents.file();
+      let cancelled = false;
+      onCleanup(() => { cancelled = true; });
+      if (!result || !source) {
+        this.blurredPreviewPdf.set(null);
+        return;
+      }
+      void createBlurredPreviewPdf(source, result.entities, result.originalText)
+        .then((pdf) => { if (!cancelled) this.blurredPreviewPdf.set(pdf); })
+        .catch(() => { if (!cancelled) this.blurredPreviewPdf.set(null); });
+    });
+  }
   protected readonly displaySegments = computed(() => {
     const result = this.documents.result();
     if (!result) return [];

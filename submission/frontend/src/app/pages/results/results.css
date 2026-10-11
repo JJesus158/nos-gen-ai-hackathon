@@ -4,15 +4,22 @@
   flex-direction: column;
   min-height: 0;
 }
-.protected-panel .panel-heading {
-  background: var(--secondary-soft);
-}
-.protected-panel h2,
-.protected-label {
-  color: var(--secondary);
-}
 .comparison .preview-panel .panel-heading {
   justify-content: space-between;
+}
+.comparison .pdf-result-preview,
+.comparison .pdf-result-preview app-pdf-preview {
+  display: block;
+  width: 100%;
+  min-width: 0;
+}
+.comparison .paper-scroll > app-pdf-preview,
+.comparison .pdf-result-preview {
+  box-sizing: border-box;
+  width: 100%;
+}
+.comparison .pdf-result-preview {
+  min-height: 100%;
 }
 .mask-controls {
   position: sticky;

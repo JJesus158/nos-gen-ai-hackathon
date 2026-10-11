@@ -273,6 +273,7 @@ input:focus-visible,
   padding: 28px 32px;
   font-size: 0.86rem;
   overflow-wrap: anywhere;
+  overflow: auto;
   box-shadow: 0 10px 24px rgb(5 10 30 / 16%);
 }
 .paper-brand {
@@ -437,7 +438,26 @@ mark {
 .paper-scroll {
   flex: 1;
   min-height: 0;
-  overflow: auto;
+  overflow-x: auto;
+  overflow-y: auto;
+  scrollbar-gutter: auto;
+  scrollbar-color: var(--line-bright) var(--well);
+  scrollbar-width: thin;
+}
+.paper-scroll::-webkit-scrollbar {
+  width: 9px;
+  height: 9px;
+}
+.paper-scroll::-webkit-scrollbar-track {
+  background: var(--well);
+}
+.paper-scroll::-webkit-scrollbar-thumb {
+  background: var(--line-bright);
+  border: 2px solid var(--well);
+  border-radius: 999px;
+}
+.paper-scroll::-webkit-scrollbar-thumb:hover {
+  background: var(--accent-text);
 }
 .form-check {
   margin-top: 8px;

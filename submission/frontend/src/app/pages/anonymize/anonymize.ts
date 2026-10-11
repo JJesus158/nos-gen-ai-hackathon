@@ -3,6 +3,7 @@ import {
   ChangeDetectionStrategy,
   Component,
   computed,
+  effect,
   ElementRef,
   Injector,
   inject,
@@ -22,6 +23,8 @@ import { Results } from '../results/results';
 import { PdfPreview } from '../../pdf-preview';
 import { EntitySelection } from '../../entity-selection';
 import { categoryDetails } from '../../document-categories';
+import { createHighlightedPdf } from '../../pdf-highlight';
+import { entityPdfBoxes } from '../../pdf-mapping';
 
 @Component({
   selector: 'app-anonymize',
@@ -43,9 +46,37 @@ export class Anonymize {
   protected readonly backIcon = faArrowLeft;
   protected readonly categoryDetails = categoryDetails;
   protected readonly dragging = signal(false);
+  protected readonly previewZoom = signal(1);
+  protected readonly pdfMappingAvailable = computed(() => {
+    const analysis = this.documents.analysis();
+    return analysis?.source === 'api' && analysis.entities.every(
+      (entity) => entityPdfBoxes(entity, analysis.originalText).length > 0,
+    );
+  });
+  protected readonly highlightedPdf = signal<Blob | null>(null);
+  protected readonly pdfPreviewFailed = signal(false);
   protected readonly error = signal<'fileError' | 'emptyPdf' | null>(null);
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
   private readonly injector = inject(Injector);
+
+  constructor() {
+    effect((onCleanup) => {
+      const file = this.documents.file();
+      const analysis = this.documents.analysis();
+      const selectedIds = this.documents.selectedEntityIds();
+      const mappingAvailable = this.pdfMappingAvailable();
+      let cancelled = false;
+      onCleanup(() => { cancelled = true; });
+      this.pdfPreviewFailed.set(false);
+      if (!file || !analysis || !mappingAvailable) {
+        this.highlightedPdf.set(null);
+        return;
+      }
+      void createHighlightedPdf(file, analysis.entities, selectedIds, analysis.originalText)
+        .then((pdf) => { if (!cancelled) this.highlightedPdf.set(pdf); })
+        .catch(() => { if (!cancelled) this.pdfPreviewFailed.set(true); });
+    });
+  }
 
   protected choose(event: Event): void {
     const input = event.target as HTMLInputElement;
@@ -84,6 +115,26 @@ export class Anonymize {
   protected backToReview(): void {
     this.documents.returnToReview();
     this.focusHeading();
+  }
+
+  protected zoomPreviewIn(): void {
+    this.previewZoom.update((value) => Math.min(2.5, value + 0.25));
+  }
+
+  protected zoomPreviewOut(): void {
+    this.previewZoom.update((value) => Math.max(0.5, value - 0.25));
+  }
+
+  protected resetPreviewZoom(): void {
+    this.previewZoom.set(1);
+  }
+
+  protected fitPreviewWidth(): void {
+    this.previewZoom.set(1);
+  }
+
+  protected fitPreviewHeight(): void {
+    this.previewZoom.set(0.5);
   }
 
   private focusHeading(): void {

@@ -17,21 +17,11 @@
           <span class="preview-file-name">{{ documents.file()?.name }}</span>
         </div>
         <div class="paper-scroll" role="region" aria-labelledby="original-title" tabindex="0">
-          <div class="paper">
-            <div class="document-text">
-              @for (segment of documents.originalSegments(); track $index) {
-                @if (segment.sensitive && documents.isSelected(segment.entityId!)) {
-                  <mark
-                    class="category-highlight is-selected"
-                    [style.--category-color]="categoryDetails(segment.type!).color"
-                    >{{ segment.text }}</mark
-                  >
-                } @else {
-                  <span>{{ segment.text }}</span>
-                }
-              }
-            </div>
-          </div>
+          <app-pdf-preview
+            [file]="documents.file()!"
+            [fullSize]="true"
+            [showControls]="false"
+          />
         </div>
       </section>
       <section class="panel preview-panel protected-panel">
@@ -40,12 +30,18 @@
           <span class="preview-file-name">{{ result.download.name }}</span>
         </div>
         <div class="paper-scroll" role="region" aria-labelledby="anonymized-title" tabindex="0">
-          <div class="paper">
-            <div class="document-text">
-              @for (segment of displaySegments(); track $index) {
-                <span [class.masked-text]="segment.masked && maskMode() === 'blur'">{{ segment.text }}</span>
-              }
-            </div>
+          <div
+            class="pdf-result-preview"
+            [attr.aria-label]="language.text().firstPagePreview"
+          >
+            <app-pdf-preview
+              [file]="maskMode() === 'blur' ? (blurredPreviewPdf() ?? result.download.blob) : result.download.blob"
+              [fullSize]="true"
+              [showControls]="false"
+              [maskMode]="maskMode() === 'blur' ? 'blur' : 'highlight'"
+              [highlights]="maskMode() === 'blur' ? result.entities : []"
+              [sourceText]="result.originalText"
+            />
           </div>
         </div>
         <div class="mask-controls" role="group" [attr.aria-label]="language.text().maskMode">
